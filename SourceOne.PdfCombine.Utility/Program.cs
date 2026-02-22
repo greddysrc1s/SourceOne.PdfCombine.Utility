@@ -1,0 +1,38 @@
+﻿using Microsoft.Extensions.Configuration;
+using Serilog;
+using SourceOne.PdfCombine.Utility.Forms;
+
+// Build configuration to read appsettings.json
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .Build();
+
+// Initialize Serilog from configuration
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(configuration)
+    .CreateLogger();
+
+try
+{
+    Log.Information("PDF Combine Utility - Windows Application Started");
+
+    // Enable visual styles for Windows Forms
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+
+    // Run the main form
+    Application.Run(new MainForm());
+
+    Log.Information("Application closed successfully");
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    MessageBox.Show($"A fatal error occurred: {ex.Message}", "Fatal Error", 
+        MessageBoxButtons.OK, MessageBoxIcon.Error);
+}
+finally
+{
+    Log.CloseAndFlush();
+}
