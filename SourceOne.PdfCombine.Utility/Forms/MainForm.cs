@@ -34,8 +34,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
             _fileStorageSettings = new FileStorageSettings();
             _configuration.GetSection("FileStorage").Bind(_fileStorageSettings);
 
-            // Set default dates
-            dtpBeginDate.Value = DateTime.Now.AddMonths(-1);
+            // Set default dates - Begin date is 7 days ago, End date is today
+            dtpBeginDate.Value = DateTime.Now.AddDays(-7);
             dtpEndDate.Value = DateTime.Now;
 
             // Initialize DataGridView
@@ -737,10 +737,18 @@ namespace SourceOne.PdfCombine.Utility.Forms
             cboCompany.DisplayMember = "Label";
             cboCompany.ValueMember = "JCCo";
 
-            // Select first item if available
-            if (_companies.Count > 0)
+            // Try to select company 12 as default
+            var company12 = _companies.FirstOrDefault(c => c.JCCo == 12);
+            if (company12 != null)
             {
+                cboCompany.SelectedValue = 12;
+                Log.Information("Set default company to 12");
+            }
+            else if (_companies.Count > 0)
+            {
+                // Fallback to first item if company 12 doesn't exist
                 cboCompany.SelectedIndex = 0;
+                Log.Warning("Company 12 not found, defaulting to first company");
             }
         }
 

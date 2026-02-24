@@ -18,15 +18,18 @@ public class FileStorageService
         if (_settings.CreateDirectoryIfNotExists)
         {
             EnsureDirectoryExists();
+            EnsureOutputDirectoryExists();
         }
 
-        // Clear temporary directory on startup if requested
+        // Clear temporary and output directories on startup if requested
         if (clearOnStartup)
         {
             CleanupTemporaryDirectory();
+            CleanupOutputDirectory();
         }
 
-        Log.Information("FileStorageService initialized with path: {TemporaryPath}", _settings.GetFullPath());
+        Log.Information("FileStorageService initialized with temporary path: {TemporaryPath}", _settings.GetFullPath());
+        Log.Information("FileStorageService initialized with output path: {OutputPath}", _settings.GetOutputPath());
     }
 
     /// <summary>
@@ -39,6 +42,19 @@ public class FileStorageService
         {
             Directory.CreateDirectory(fullPath);
             Log.Information("Created temporary directory: {DirectoryPath}", fullPath);
+        }
+    }
+
+    /// <summary>
+    /// Ensures the output directory exists
+    /// </summary>
+    private void EnsureOutputDirectoryExists()
+    {
+        var outputPath = _settings.GetOutputPath();
+        if (!Directory.Exists(outputPath))
+        {
+            Directory.CreateDirectory(outputPath);
+            Log.Information("Created output directory: {DirectoryPath}", outputPath);
         }
     }
 
@@ -91,6 +107,58 @@ public class FileStorageService
         catch (Exception ex)
         {
             Log.Error(ex, "Error during temporary directory cleanup: {DirectoryPath}", fullPath);
+        }
+    }
+
+    /// <summary>
+    /// Cleans up the output directory by deleting all files
+    /// </summary>
+    public void CleanupOutputDirectory()
+    {
+        var outputPath = _settings.GetOutputPath();
+        
+        if (!Directory.Exists(outputPath))
+        {
+            Log.Information("Output directory does not exist, skipping cleanup");
+            return;
+        }
+
+        Log.Information("Cleaning up output directory: {DirectoryPath}", outputPath);
+
+        try
+        {
+            var allFiles = Directory.GetFiles(outputPath);
+            int deletedCount = 0;
+            int failedCount = 0;
+
+            foreach (var file in allFiles)
+            {
+                try
+                {
+                    File.Delete(file);
+                    Log.Debug("Deleted file: {FileName}", Path.GetFileName(file));
+                    deletedCount++;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to delete file: {FilePath}", file);
+                    failedCount++;
+                }
+            }
+
+            if (deletedCount > 0 || failedCount > 0)
+            {
+                Log.Information("Output directory cleanup completed: {DeletedCount} deleted, {FailedCount} failed", 
+                    deletedCount, failedCount);
+            }
+            else
+            {
+                Log.Information("Output directory was already empty");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error during output directory cleanup: {DirectoryPath}", outputPath);
         }
     }
 
