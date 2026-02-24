@@ -29,7 +29,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private void InitializeComponent()
         {
             lblCompany = new Label();
-            txtCompany = new TextBox();
+            cboCompany = new ComboBox();
             lblBeginDate = new Label();
             dtpBeginDate = new DateTimePicker();
             lblEndDate = new Label();
@@ -41,8 +41,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
             statusStrip = new StatusStrip();
             lblStatus = new ToolStripStatusLabel();
             progressBar = new ToolStripProgressBar();
-            lblRecordCount = new ToolStripStatusLabel();
             lblCombinedFileLink = new ToolStripStatusLabel();
+            lblRecordCount = new ToolStripStatusLabel();
             grpParameters = new GroupBox();
             grpRecords = new GroupBox();
             ((System.ComponentModel.ISupportInitialize)dgvRecords).BeginInit();
@@ -60,12 +60,14 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblCompany.TabIndex = 0;
             lblCompany.Text = "Company:";
             // 
-            // txtCompany
+            // cboCompany
             // 
-            txtCompany.Location = new Point(120, 32);
-            txtCompany.Name = "txtCompany";
-            txtCompany.Size = new Size(150, 27);
-            txtCompany.TabIndex = 1;
+            cboCompany.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboCompany.FormattingEnabled = true;
+            cboCompany.Location = new Point(120, 32);
+            cboCompany.Name = "cboCompany";
+            cboCompany.Size = new Size(300, 28);
+            cboCompany.TabIndex = 1;
             // 
             // lblBeginDate
             // 
@@ -161,7 +163,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // lblStatus
             // 
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(583, 20);
+            lblStatus.Size = new Size(1271, 20);
             lblStatus.Spring = true;
             lblStatus.Text = "Ready";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
@@ -173,13 +175,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
             progressBar.Style = ProgressBarStyle.Marquee;
             progressBar.Visible = false;
             // 
-            // lblRecordCount
-            // 
-            lblRecordCount.Name = "lblRecordCount";
-            lblRecordCount.Size = new Size(120, 20);
-            lblRecordCount.Text = "Total Records: 0";
-            lblRecordCount.TextAlign = ContentAlignment.MiddleRight;
-            // 
             // lblCombinedFileLink
             // 
             lblCombinedFileLink.IsLink = true;
@@ -188,10 +183,17 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblCombinedFileLink.Visible = false;
             lblCombinedFileLink.Click += lblCombinedFileLink_Click;
             // 
+            // lblRecordCount
+            // 
+            lblRecordCount.Name = "lblRecordCount";
+            lblRecordCount.Size = new Size(114, 20);
+            lblRecordCount.Text = "Total Records: 0";
+            lblRecordCount.TextAlign = ContentAlignment.MiddleRight;
+            // 
             // grpParameters
             // 
             grpParameters.Controls.Add(lblCompany);
-            grpParameters.Controls.Add(txtCompany);
+            grpParameters.Controls.Add(cboCompany);
             grpParameters.Controls.Add(lblBeginDate);
             grpParameters.Controls.Add(btnExportToCsv);
             grpParameters.Controls.Add(btnCombinePdfs);
@@ -206,6 +208,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             grpParameters.TabIndex = 11;
             grpParameters.TabStop = false;
             grpParameters.Text = "Parameters";
+            grpParameters.Enter += grpParameters_Enter;
             // 
             // grpRecords
             // 
@@ -229,6 +232,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "PDF Combine Utility";
+            Load += MainForm_Load;
             ((System.ComponentModel.ISupportInitialize)dgvRecords).EndInit();
             statusStrip.ResumeLayout(false);
             statusStrip.PerformLayout();
@@ -243,7 +247,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
         #endregion
 
         private System.Windows.Forms.Label lblCompany;
-        private System.Windows.Forms.TextBox txtCompany;
+        private System.Windows.Forms.ComboBox cboCompany;
         private System.Windows.Forms.Label lblBeginDate;
         private System.Windows.Forms.DateTimePicker dtpBeginDate;
         private System.Windows.Forms.Label lblEndDate;

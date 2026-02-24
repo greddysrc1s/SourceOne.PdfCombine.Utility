@@ -150,7 +150,79 @@ public class PdfQueryService
     /// </summary>
     public async Task<int> GetRecordCountAsync(int company, DateTime beginDate, DateTime endDate)
     {
-        var records = await GetUnallocatedPdfRecordsAsync(company, beginDate, endDate);
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand("urptJFKS_Unallocated_PDF_Query_S1S", connection);
+        command.CommandType = CommandType.StoredProcedure;
+        command.Parameters.AddWithValue("@Company", company);
+        command.Parameters.AddWithValue("@BeginDate", beginDate);
+        command.Parameters.AddWithValue("@EndDate", endDate);
+
+        var records = new List<UnallocatedPdfRecord>();
+        using var reader = await command.ExecuteReaderAsync();
+        
+        while (await reader.ReadAsync())
+        {
+            records.Add(new UnallocatedPdfRecord());
+        }
+
         return records.Count;
+    }
+
+    /// <summary>
+    /// Gets the list of companies from JCCO table
+    /// </summary>
+    /// <returns>List of companies with JCCo, Name, and Label</returns>
+    public async Task<List<Company>> GetCompaniesAsync()
+    {
+        var companies = new List<Company>();
+
+        try
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT JCCo, [Name], CAST(JCCo AS VARCHAR(3)) + ' - ' + [Name] AS Label 
+                FROM JCCO 
+                INNER JOIN HQCO ON JCCo = HQCo 
+                ORDER BY JCCo";
+
+            using var command = new SqlCommand(query, connection);
+            using var reader = await command.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                // Handle both byte and int types for JCCo
+                int jcCoValue;
+                var jcCoOrdinal = reader.GetOrdinal("JCCo");
+                
+                if (reader.GetFieldType(jcCoOrdinal) == typeof(byte))
+                {
+                    jcCoValue = reader.GetByte(jcCoOrdinal);
+                }
+                else
+                {
+                    jcCoValue = reader.GetInt32(jcCoOrdinal);
+                }
+
+                companies.Add(new Company
+                {
+                    JCCo = jcCoValue,
+                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? null : reader.GetString(reader.GetOrdinal("Name")),
+                    Label = reader.IsDBNull(reader.GetOrdinal("Label")) ? null : reader.GetString(reader.GetOrdinal("Label"))
+                });
+            }
+
+            Log.Information($"Retrieved {companies.Count} companies from database");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving companies from database");
+            throw;
+        }
+
+        return companies;
     }
 }

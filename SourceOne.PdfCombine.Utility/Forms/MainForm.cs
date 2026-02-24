@@ -18,6 +18,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private int _savedFileCount = 0;
         private Dictionary<Guid, string> _savedFilePaths = new Dictionary<Guid, string>(); // Track saved file paths
         private string? _combinedFilePath; // Track the combined PDF file path
+        private List<Company>? _companies; // Track available companies
 
         public MainForm()
         {
@@ -43,7 +44,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             Log.Information("Application initialized successfully");
             Log.Information($"Temporary file path: {_fileStorageSettings.GetFullPath()}");
             Log.Information($"Output file path: {_fileStorageSettings.GetOutputPath()}");
-            
+
             SetStatus("Ready", false);
         }
 
@@ -194,21 +195,21 @@ namespace SourceOne.PdfCombine.Utility.Forms
                     }
                     else
                     {
-                        MessageBox.Show($"PDF file not found at: {filePath}\n\nThe file may have been moved or deleted.", 
+                        MessageBox.Show($"PDF file not found at: {filePath}\n\nThe file may have been moved or deleted.",
                             "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         Log.Warning($"PDF file not found: {filePath}");
                     }
                 }
                 else
                 {
-                    MessageBox.Show($"PDF file has not been downloaded yet.\n\nFile: {originalFileName ?? "Unknown"}\n\nPlease wait for the processing to complete.", 
+                    MessageBox.Show($"PDF file has not been downloaded yet.\n\nFile: {originalFileName ?? "Unknown"}\n\nPlease wait for the processing to complete.",
                         "File Not Available", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Log.Information($"Attempted to open PDF that hasn't been downloaded: {attachmentId}");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening PDF file: {ex.Message}", "Error", 
+                MessageBox.Show($"Error opening PDF file: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Log.Error(ex, $"Error opening PDF file for attachment: {attachmentId}");
             }
@@ -241,20 +242,21 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private async void btnRetrieveRecords_Click(object sender, EventArgs e)
         {
             // Validate inputs
-            if (!int.TryParse(txtCompany.Text, out int company))
+            if (cboCompany.SelectedValue == null)
             {
-                MessageBox.Show("Please enter a valid company ID", "Validation Error", 
+                MessageBox.Show("Please select a company", "Validation Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtCompany.Focus();
+                cboCompany.Focus();
                 return;
             }
 
+            int company = (int)cboCompany.SelectedValue;
             DateTime beginDate = dtpBeginDate.Value;
             DateTime endDate = dtpEndDate.Value;
 
             if (beginDate > endDate)
             {
-                MessageBox.Show("Begin Date cannot be after End Date", "Validation Error", 
+                MessageBox.Show("Begin Date cannot be after End Date", "Validation Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -265,17 +267,17 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 _savedFilePaths.Clear();
                 _combinedFilePath = null; // Clear combined file path
                 lblCombinedFileLink.Visible = false; // Hide link
-                
+
                 // Disable controls and show progress
                 SetControlsEnabled(false);
                 SetStatus("Retrieving records from database...", true);
-                this.Cursor = Cursors.WaitCursor;
+                SetCursor(Cursors.WaitCursor);
 
                 // Get connection string
                 string? connectionString = _configuration.GetConnectionString("DefaultConnection");
                 if (string.IsNullOrWhiteSpace(connectionString))
                 {
-                    MessageBox.Show("Connection string not found in appsettings.json", "Configuration Error", 
+                    MessageBox.Show("Connection string not found in appsettings.json", "Configuration Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -311,7 +313,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 {
                     dgvRecords.DataSource = null;
                     UpdateRecordCount(0);
-                    MessageBox.Show("No records found for the specified criteria", "No Records", 
+                    MessageBox.Show("No records found for the specified criteria", "No Records",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                     SetStatus("No records found", false);
                 }
@@ -319,13 +321,13 @@ namespace SourceOne.PdfCombine.Utility.Forms
             catch (Exception ex)
             {
                 Log.Error(ex, "Error retrieving records");
-                MessageBox.Show($"Error retrieving records: {ex.Message}", "Error", 
+                MessageBox.Show($"Error retrieving records: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 SetStatus("Error occurred", false);
             }
             finally
             {
-                this.Cursor = Cursors.Default;
+                SetCursor(Cursors.Default);
                 SetControlsEnabled(true);
             }
         }
@@ -377,10 +379,10 @@ namespace SourceOne.PdfCombine.Utility.Forms
                             {
                                 successCount++;
                                 sequenceNumber++;
-                                
+
                                 // Store the saved file path for later viewing
                                 _savedFilePaths[attachmentId] = savedPath;
-                                
+
                                 Log.Information($"  ✓ Saved: {Path.GetFileName(savedPath)}");
                             }
                             else
@@ -420,12 +422,12 @@ namespace SourceOne.PdfCombine.Utility.Forms
             if (successCount > 0)
             {
                 btnCombinePdfs.Enabled = true;
-                MessageBox.Show($"Successfully processed {successCount} PDF files!\n\nFiles are ready to be combined.\n\nYou can now click 'View PDF' button in any row to view individual files.", 
+                MessageBox.Show($"Successfully processed {successCount} PDF files!\n\nFiles are ready to be combined.\n\nYou can now click 'View PDF' button in any row to view individual files.",
                     "Processing Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                MessageBox.Show("No PDF files were successfully saved.", "No Files", 
+                MessageBox.Show("No PDF files were successfully saved.", "No Files",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -439,10 +441,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
 
             btnRetrieveRecords.Enabled = enabled;
-            txtCompany.Enabled = enabled;
             dtpBeginDate.Enabled = enabled;
             dtpEndDate.Enabled = enabled;
-            
+
             if (enabled && _records != null && _records.Count > 0)
             {
                 btnExportToCsv.Enabled = true;
@@ -463,7 +464,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             {
                 SetControlsEnabled(false);
                 SetStatus("Combining PDFs...", true);
-                this.Cursor = Cursors.WaitCursor;
+                SetCursor(Cursors.WaitCursor);
 
                 Log.Information("");
                 Log.Information("===========================================");
@@ -479,7 +480,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 _combinedFilePath = combinedPdfPath;
 
                 Log.Information("✓ PDF combining completed successfully!");
-                Log.Information($"Combined PDF location: {combinedPdfPath}");
 
                 var pdfInfo = _pdfCombineService.GetCombinedPdfInfo(combinedPdfPath);
                 if (pdfInfo != null)
@@ -504,7 +504,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
                     $"Pages: {pdfInfo?.PageCount}\n\n" +
                     $"Location: {combinedPdfPath}\n\n" +
                     $"You can also click the link in the status bar to view the file.\n\n" +
-                    $"Do you want to open the file now?", 
+                    $"Do you want to open the file now?",
                     "Success", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
 
                 if (result == DialogResult.Yes)
@@ -515,13 +515,13 @@ namespace SourceOne.PdfCombine.Utility.Forms
             catch (Exception ex)
             {
                 Log.Error(ex, "Error combining PDF files");
-                MessageBox.Show($"Error combining PDF files: {ex.Message}", "Error", 
+                MessageBox.Show($"Error combining PDF files: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 SetStatus("Error occurred", false);
             }
             finally
             {
-                this.Cursor = Cursors.Default;
+                SetCursor(Cursors.Default);
                 SetControlsEnabled(true);
             }
         }
@@ -551,7 +551,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
         {
             if (string.IsNullOrWhiteSpace(_combinedFilePath))
             {
-                MessageBox.Show("No combined PDF file is available.", "No File", 
+                MessageBox.Show("No combined PDF file is available.", "No File",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -569,10 +569,10 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 }
                 else
                 {
-                    MessageBox.Show($"Combined PDF file not found at:\n{_combinedFilePath}\n\nThe file may have been moved or deleted.", 
+                    MessageBox.Show($"Combined PDF file not found at:\n{_combinedFilePath}\n\nThe file may have been moved or deleted.",
                         "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     Log.Warning($"Combined PDF file not found: {_combinedFilePath}");
-                    
+
                     // Hide the link if file doesn't exist
                     lblCombinedFileLink.Visible = false;
                     _combinedFilePath = null;
@@ -580,7 +580,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening combined PDF file: {ex.Message}", "Error", 
+                MessageBox.Show($"Error opening combined PDF file: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Log.Error(ex, $"Error opening combined PDF file: {_combinedFilePath}");
             }
@@ -605,9 +605,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
                     if (saveFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         ExportToCsv(saveFileDialog.FileName);
-                        MessageBox.Show($"Data exported successfully to:\n{saveFileDialog.FileName}", 
+                        MessageBox.Show($"Data exported successfully to:\n{saveFileDialog.FileName}",
                             "Export Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        
+
                         Log.Information($"Exported {_records.Count} records to CSV: {saveFileDialog.FileName}");
                     }
                 }
@@ -615,7 +615,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             catch (Exception ex)
             {
                 Log.Error(ex, "Error exporting data");
-                MessageBox.Show($"Error exporting data: {ex.Message}", "Export Error", 
+                MessageBox.Show($"Error exporting data: {ex.Message}", "Export Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -661,6 +661,92 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
 
             return field;
+        }
+
+        private async void MainForm_Load(object sender, EventArgs e)
+        {
+            await LoadCompaniesAsync();
+        }
+
+        private async Task LoadCompaniesAsync()
+        {
+            try
+            {
+                SetStatus("Loading companies...", true);
+                SetCursor(Cursors.WaitCursor);
+
+                // Get connection string
+                string? connectionString = _configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    MessageBox.Show("Connection string not found in appsettings.json", "Configuration Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Create temporary query service to load companies
+                var queryService = new PdfQueryService(connectionString);
+                
+                // Load companies from database (this runs on background thread)
+                _companies = await queryService.GetCompaniesAsync();
+
+                // Update UI on the UI thread
+                if (InvokeRequired)
+                {
+                    Invoke(() => BindCompaniesToComboBox());
+                }
+                else
+                {
+                    BindCompaniesToComboBox();
+                }
+
+                Log.Information($"Loaded {_companies.Count} companies into dropdown");
+                SetStatus("Ready", false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading companies");
+                MessageBox.Show($"Error loading companies: {ex.Message}\n\nPlease check your database connection.",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SetStatus("Error loading companies", false);
+            }
+            finally
+            {
+                SetCursor(Cursors.Default);
+            }
+        }
+
+        private void SetCursor(Cursor cursor)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() => SetCursor(cursor));
+                return;
+            }
+
+            this.Cursor = cursor;
+        }
+
+        private void BindCompaniesToComboBox()
+        {
+            if (_companies == null || _companies.Count == 0)
+                return;
+
+            // Bind to ComboBox on UI thread
+            cboCompany.DataSource = _companies;
+            cboCompany.DisplayMember = "Label";
+            cboCompany.ValueMember = "JCCo";
+
+            // Select first item if available
+            if (_companies.Count > 0)
+            {
+                cboCompany.SelectedIndex = 0;
+            }
+        }
+
+        private void grpParameters_Enter(object sender, EventArgs e)
+        {
+
         }
     }
 }
