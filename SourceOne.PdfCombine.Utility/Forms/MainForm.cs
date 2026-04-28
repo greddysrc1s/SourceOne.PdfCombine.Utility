@@ -446,11 +446,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             if (enabled && _records != null && _records.Count > 0)
             {
-                btnExportToCsv.Enabled = true;
+               // btnExportToCsv.Enabled = true;
             }
             else if (!enabled)
             {
-                btnExportToCsv.Enabled = false;
+              //  btnExportToCsv.Enabled = false;
                 btnCombinePdfs.Enabled = false;
             }
         }

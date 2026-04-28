@@ -36,7 +36,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
             dtpEndDate = new DateTimePicker();
             btnRetrieveRecords = new Button();
             btnCombinePdfs = new Button();
-            btnExportToCsv = new Button();
             dgvRecords = new DataGridView();
             statusStrip = new StatusStrip();
             lblStatus = new ToolStripStatusLabel();
@@ -124,17 +123,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
             btnCombinePdfs.UseVisualStyleBackColor = true;
             btnCombinePdfs.Click += btnCombinePdfs_Click;
             // 
-            // btnExportToCsv
-            // 
-            btnExportToCsv.Enabled = false;
-            btnExportToCsv.Location = new Point(1000, 32);
-            btnExportToCsv.Name = "btnExportToCsv";
-            btnExportToCsv.Size = new Size(200, 67);
-            btnExportToCsv.TabIndex = 8;
-            btnExportToCsv.Text = "Export to CSV";
-            btnExportToCsv.UseVisualStyleBackColor = true;
-            btnExportToCsv.Click += btnExportToCsv_Click;
-            // 
             // dgvRecords
             // 
             dgvRecords.AllowUserToAddRows = false;
@@ -195,7 +183,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
             grpParameters.Controls.Add(lblCompany);
             grpParameters.Controls.Add(cboCompany);
             grpParameters.Controls.Add(lblBeginDate);
-            grpParameters.Controls.Add(btnExportToCsv);
             grpParameters.Controls.Add(btnCombinePdfs);
             grpParameters.Controls.Add(dtpBeginDate);
             grpParameters.Controls.Add(btnRetrieveRecords);
@@ -254,7 +241,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private System.Windows.Forms.DateTimePicker dtpEndDate;
         private System.Windows.Forms.Button btnRetrieveRecords;
         private System.Windows.Forms.Button btnCombinePdfs;
-        private System.Windows.Forms.Button btnExportToCsv;
         private System.Windows.Forms.DataGridView dgvRecords;
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
