@@ -19,6 +19,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private Dictionary<Guid, string> _savedFilePaths = new Dictionary<Guid, string>(); // Track saved file paths
         private string? _combinedFilePath; // Track the combined PDF file path
         private List<Company>? _companies; // Track available companies
+        private List<VendorGroup>? _vendorGroups; // Track available vendor groups
+        private List<Vendor>? _vendors; // Track available vendors
+        private List<Job>? _jobs; // Track available jobs
 
         public MainForm()
         {
@@ -40,6 +43,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             // Initialize DataGridView
             InitializeDataGridView();
+
+            // Initialize Date Type dropdown
+            InitializeDateTypeDropdown();
 
             Log.Information("Application initialized successfully");
             Log.Information($"Temporary file path: {_fileStorageSettings.GetFullPath()}");
@@ -261,6 +267,30 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 return;
             }
 
+            // Get optional filter values
+            string? dateType = cboDateType.SelectedValue as string;
+            string? vendorGroup = null;
+            int? vendor = null;
+            string? job = null;
+
+            // Get vendor group if selected and valid
+            if (cboVendorGroup.Enabled && cboVendorGroup.SelectedValue != null && cboVendorGroup.SelectedValue is string vg)
+            {
+                vendorGroup = vg;
+            }
+
+            // Get vendor if selected and valid
+            if (cboVendor.Enabled && cboVendor.SelectedValue != null && cboVendor.SelectedValue is int v)
+            {
+                vendor = v;
+            }
+
+            // Get job if selected and valid
+            if (cboJob.Enabled && cboJob.SelectedValue != null && cboJob.SelectedValue is string j)
+            {
+                job = j;
+            }
+
             try
             {
                 // Clear previous data
@@ -289,10 +319,18 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 Log.Information("===========================================");
                 Log.Information($"Querying database for Company {company} from {beginDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}");
+                Log.Information($"Filters - DateType: {dateType}, VendorGroup: {vendorGroup}, Vendor: {vendor}, Job: {job}");
                 Log.Information("===========================================");
 
-                // Query records
-                _records = await _pdfQueryService.GetUnallocatedPdfRecordsAsync(company, beginDate, endDate);
+                // Query records with all parameters
+                _records = await _pdfQueryService.GetUnallocatedPdfRecordsAsync(
+                    company, 
+                    beginDate, 
+                    endDate, 
+                    dateType, 
+                    vendorGroup, 
+                    vendor, 
+                    job);
 
                 Log.Information($"Found {_records.Count} record(s)");
 
@@ -329,6 +367,30 @@ namespace SourceOne.PdfCombine.Utility.Forms
             {
                 SetCursor(Cursors.Default);
                 SetControlsEnabled(true);
+            }
+        }
+
+        private void SetControlsEnabled(bool enabled)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() => SetControlsEnabled(enabled));
+                return;
+            }
+
+            btnRetrieveRecords.Enabled = enabled;
+            dtpBeginDate.Enabled = enabled;
+            dtpEndDate.Enabled = enabled;
+
+            if (enabled && _records != null && _records.Count > 0)
+            {
+                // btnExportToCsv.Enabled = true;
+            }
+            else if (!enabled)
+            {
+                //  btnExportToCsv.Enabled = false;
+                btnCombinePdfs.Enabled = false;
+                btnDownload.Enabled = false;
             }
         }
 
@@ -422,7 +484,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
             if (successCount > 0)
             {
                 btnCombinePdfs.Enabled = true;
-                MessageBox.Show($"Successfully processed {successCount} PDF files!\n\nFiles are ready to be combined.\n\nYou can now click 'View PDF' button in any row to view individual files.",
+                btnDownload.Enabled = true;
+                MessageBox.Show($"Successfully processed {successCount} PDF files!\n\nFiles are ready to be combined or downloaded.\n\nYou can now click 'View PDF' button in any row to view individual files.",
                     "Processing Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
@@ -432,26 +495,63 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
-        private void SetControlsEnabled(bool enabled)
+        private void lblCombinedFileLink_Click(object? sender, EventArgs e)
+        {
+            OpenCombinedFile();
+        }
+
+        private void UpdateCombinedFileLink(string fileName, int pageCount)
         {
             if (InvokeRequired)
             {
-                Invoke(() => SetControlsEnabled(enabled));
+                Invoke(() => UpdateCombinedFileLink(fileName, pageCount));
                 return;
             }
 
-            btnRetrieveRecords.Enabled = enabled;
-            dtpBeginDate.Enabled = enabled;
-            dtpEndDate.Enabled = enabled;
+            lblCombinedFileLink.Text = $"📄 View Combined PDF: {fileName} ({pageCount} pages)";
+            lblCombinedFileLink.Visible = true;
+            lblCombinedFileLink.IsLink = true;
+            lblCombinedFileLink.LinkColor = System.Drawing.Color.Blue;
+            lblCombinedFileLink.ActiveLinkColor = System.Drawing.Color.Red;
+            lblCombinedFileLink.VisitedLinkColor = System.Drawing.Color.Purple;
+        }
 
-            if (enabled && _records != null && _records.Count > 0)
+        private void OpenCombinedFile()
+        {
+            if (string.IsNullOrWhiteSpace(_combinedFilePath))
             {
-               // btnExportToCsv.Enabled = true;
+                MessageBox.Show("No combined PDF file is available.", "No File",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            else if (!enabled)
+
+            try
             {
-              //  btnExportToCsv.Enabled = false;
-                btnCombinePdfs.Enabled = false;
+                if (File.Exists(_combinedFilePath))
+                {
+                    Log.Information($"Opening combined PDF file: {_combinedFilePath}");
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = _combinedFilePath,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    MessageBox.Show($"Combined PDF file not found at:\n{_combinedFilePath}\n\nThe file may have been moved or deleted.",
+                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Log.Warning($"Combined PDF file not found: {_combinedFilePath}");
+
+                    // Hide the link if file doesn't exist
+                    lblCombinedFileLink.Visible = false;
+                    _combinedFilePath = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening combined PDF file: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Log.Error(ex, $"Error opening combined PDF file: {_combinedFilePath}");
             }
         }
 
@@ -526,141 +626,138 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
-        private void UpdateCombinedFileLink(string fileName, int pageCount)
+        private async void btnDownload_Click(object sender, EventArgs e)
         {
-            if (InvokeRequired)
+            if (_fileStorageService == null || _savedFileCount == 0)
             {
-                Invoke(() => UpdateCombinedFileLink(fileName, pageCount));
-                return;
-            }
-
-            lblCombinedFileLink.Text = $"📄 View Combined PDF: {fileName} ({pageCount} pages)";
-            lblCombinedFileLink.Visible = true;
-            lblCombinedFileLink.IsLink = true;
-            lblCombinedFileLink.LinkColor = System.Drawing.Color.Blue;
-            lblCombinedFileLink.ActiveLinkColor = System.Drawing.Color.Red;
-            lblCombinedFileLink.VisitedLinkColor = System.Drawing.Color.Purple;
-        }
-
-        private void lblCombinedFileLink_Click(object? sender, EventArgs e)
-        {
-            OpenCombinedFile();
-        }
-
-        private void OpenCombinedFile()
-        {
-            if (string.IsNullOrWhiteSpace(_combinedFilePath))
-            {
-                MessageBox.Show("No combined PDF file is available.", "No File",
+                MessageBox.Show("No PDF files are available to download.", "No Files",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             try
             {
-                if (File.Exists(_combinedFilePath))
+                // Show folder browser dialog
+                using var folderDialog = new FolderBrowserDialog
                 {
-                    Log.Information($"Opening combined PDF file: {_combinedFilePath}");
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = _combinedFilePath,
-                        UseShellExecute = true
-                    });
+                    Description = "Select a folder to save the PDF files",
+                    ShowNewFolderButton = true,
+                    RootFolder = Environment.SpecialFolder.MyComputer
+                };
+
+                // Show the dialog
+                if (folderDialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    Log.Information("User cancelled folder selection");
+                    return;
                 }
-                else
-                {
-                    MessageBox.Show($"Combined PDF file not found at:\n{_combinedFilePath}\n\nThe file may have been moved or deleted.",
-                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    Log.Warning($"Combined PDF file not found: {_combinedFilePath}");
 
-                    // Hide the link if file doesn't exist
-                    lblCombinedFileLink.Visible = false;
-                    _combinedFilePath = null;
+                var destinationFolder = folderDialog.SelectedPath;
+
+                if (string.IsNullOrWhiteSpace(destinationFolder))
+                {
+                    MessageBox.Show("Please select a valid folder.", "Invalid Folder",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
                 }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error opening combined PDF file: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Log.Error(ex, $"Error opening combined PDF file: {_combinedFilePath}");
-            }
-        }
 
-        private void btnExportToCsv_Click(object sender, EventArgs e)
-        {
-            if (_records == null || _records.Count == 0)
-            {
-                MessageBox.Show("No records to export", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+                SetControlsEnabled(false);
+                SetStatus("Downloading PDF files to selected folder...", true);
+                SetCursor(Cursors.WaitCursor);
 
-            try
-            {
-                using (var saveFileDialog = new SaveFileDialog())
+                Log.Information("===========================================");
+                Log.Information($"Downloading PDF files to: {destinationFolder}");
+                Log.Information("===========================================");
+
+                // Get all PDF files from temporary directory
+                var pdfFiles = _fileStorageService.GetAllPdfFiles();
+
+                int copiedCount = 0;
+                int failedCount = 0;
+
+                foreach (var sourceFile in pdfFiles)
                 {
-                    saveFileDialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
-                    saveFileDialog.Title = "Export to CSV";
-                    saveFileDialog.FileName = $"UnallocatedPdfRecords_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-
-                    if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                    try
                     {
-                        ExportToCsv(saveFileDialog.FileName);
-                        MessageBox.Show($"Data exported successfully to:\n{saveFileDialog.FileName}",
-                            "Export Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        var fileName = Path.GetFileName(sourceFile);
+                        var destinationPath = Path.Combine(destinationFolder, fileName);
 
-                        Log.Information($"Exported {_records.Count} records to CSV: {saveFileDialog.FileName}");
+                        // Handle duplicate filenames in destination
+                        destinationPath = GetUniqueDestinationPath(destinationPath);
+
+                        File.Copy(sourceFile, destinationPath, overwrite: false);
+                        copiedCount++;
+
+                        Log.Information($"  ✓ Copied: {fileName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        failedCount++;
+                        Log.Error(ex, $"  ✗ Failed to copy: {Path.GetFileName(sourceFile)}");
                     }
                 }
+
+                Log.Information("===========================================");
+                Log.Information($"Download Summary: {copiedCount} files copied, {failedCount} failed");
+                Log.Information("===========================================");
+
+                SetStatus($"Successfully downloaded {copiedCount} PDF files", false);
+
+                var result = MessageBox.Show(
+                    $"Successfully downloaded {copiedCount} PDF file(s) to:\n\n{destinationFolder}\n\n" +
+                    (failedCount > 0 ? $"{failedCount} file(s) failed to copy.\n\n" : "") +
+                    "Do you want to open the folder?",
+                    "Download Complete",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information);
+
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = destinationFolder,
+                        UseShellExecute = true,
+                        Verb = "open"
+                    });
+                }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error exporting data");
-                MessageBox.Show($"Error exporting data: {ex.Message}", "Export Error",
+                Log.Error(ex, "Error downloading PDF files");
+                MessageBox.Show($"Error downloading PDF files: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SetStatus("Error occurred during download", false);
+            }
+            finally
+            {
+                SetCursor(Cursors.Default);
+                SetControlsEnabled(true);
             }
         }
 
-        private void ExportToCsv(string filePath)
+        /// <summary>
+        /// Gets a unique file path in the destination by appending a number if the file already exists
+        /// </summary>
+        private string GetUniqueDestinationPath(string filePath)
         {
-            if (_records == null) return;
+            if (!File.Exists(filePath))
+                return filePath;
 
-            var sb = new StringBuilder();
+            var directory = Path.GetDirectoryName(filePath) ?? string.Empty;
+            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+            var extension = Path.GetExtension(filePath);
+            int counter = 1;
 
-            // Add header
-            sb.AppendLine("Vendor,Vendor Name,Invoice,Invoice Date,Job,Expense Account,Amount,Item,Attachment ID,File Name,Add Date,Date Entered");
-
-            // Add data rows
-            foreach (var record in _records)
+            string newPath;
+            do
             {
-                sb.AppendLine($"{EscapeCsvField(record.Vendor.ToString())}," +
-                             $"{EscapeCsvField(record.Name)}," +
-                             $"{EscapeCsvField(record.Invoice)}," +
-                             $"{EscapeCsvField(record.Invoice_Date?.ToString("yyyy-MM-dd"))}," +
-                             $"{EscapeCsvField(record.Job)}," +
-                             $"{EscapeCsvField(record.Expense_Account)}," +
-                             $"{EscapeCsvField(record.Amount.ToString("F2"))}," +
-                             $"{EscapeCsvField(record.Item)}," +
-                             $"{EscapeCsvField(record.UniqueAttchID?.ToString())}," +
-                             $"{EscapeCsvField(record.OrigFileName)}," +
-                             $"{EscapeCsvField(record.AddDate?.ToString("yyyy-MM-dd"))}," +
-                             $"{EscapeCsvField(record.DateEntered?.ToString("yyyy-MM-dd HH:mm:ss"))}");
+                newPath = Path.Combine(directory, $"{fileNameWithoutExtension}_copy{counter}{extension}");
+                counter++;
             }
+            while (File.Exists(newPath));
 
-            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
-        }
-
-        private string EscapeCsvField(string? field)
-        {
-            if (string.IsNullOrEmpty(field))
-                return "";
-
-            // If field contains comma, quote, or newline, wrap it in quotes and escape quotes
-            if (field.Contains(',') || field.Contains('"') || field.Contains('\n'))
-            {
-                return $"\"{field.Replace("\"", "\"\"")}\"";
-            }
-
-            return field;
+            Log.Debug("File already exists in destination, using unique name: {NewPath}", Path.GetFileName(newPath));
+            return newPath;
         }
 
         private async void MainForm_Load(object sender, EventArgs e)
@@ -686,7 +783,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Create temporary query service to load companies
                 var queryService = new PdfQueryService(connectionString);
-                
+
                 // Load companies from database (this runs on background thread)
                 _companies = await queryService.GetCompaniesAsync();
 
@@ -752,9 +849,251 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
+        private async void cboCompany_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cboCompany.SelectedValue == null || !(cboCompany.SelectedValue is int))
+                return;
+
+            int selectedCompany = (int)cboCompany.SelectedValue;
+            
+            // Load both vendor groups and jobs for the selected company
+            await Task.WhenAll(
+                LoadVendorGroupsAsync(selectedCompany),
+                LoadJobsAsync(selectedCompany)
+            );
+        }
+
+        private async Task LoadVendorGroupsAsync(int company)
+        {
+            try
+            {
+                SetStatus($"Loading vendor groups for company {company}...", true);
+
+                // Get connection string
+                string? connectionString = _configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    Log.Warning("Connection string not found, cannot load vendor groups");
+                    return;
+                }
+
+                // Create temporary query service to load vendor groups
+                var queryService = new PdfQueryService(connectionString);
+                
+                // Load vendor groups from database
+                _vendorGroups = await queryService.GetVendorGroupsAsync(company);
+
+                // Update UI on the UI thread
+                if (InvokeRequired)
+                {
+                    Invoke(() => BindVendorGroupsToComboBox());
+                }
+                else
+                {
+                    BindVendorGroupsToComboBox();
+                }
+
+                Log.Information($"Loaded {_vendorGroups.Count} vendor groups for company {company}");
+                SetStatus("Ready", false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error loading vendor groups for company {company}");
+                cboVendorGroup.DataSource = null;
+                cboVendorGroup.Items.Clear();
+                SetStatus("Error loading vendor groups", false);
+            }
+        }
+
+        private async Task LoadJobsAsync(int company)
+        {
+            try
+            {
+                SetStatus($"Loading jobs for company {company}...", true);
+
+                // Get connection string
+                string? connectionString = _configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    Log.Warning("Connection string not found, cannot load jobs");
+                    return;
+                }
+
+                // Create temporary query service to load jobs
+                var queryService = new PdfQueryService(connectionString);
+                
+                // Load jobs from database
+                _jobs = await queryService.GetJobsAsync(company);
+
+                // Update UI on the UI thread
+                if (InvokeRequired)
+                {
+                    Invoke(() => BindJobsToComboBox());
+                }
+                else
+                {
+                    BindJobsToComboBox();
+                }
+
+                Log.Information($"Loaded {_jobs.Count} jobs for company {company}");
+                SetStatus("Ready", false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error loading jobs for company {company}");
+                cboJob.DataSource = null;
+                cboJob.Items.Clear();
+                SetStatus("Error loading jobs", false);
+            }
+        }
+
+        private void BindVendorGroupsToComboBox()
+        {
+            if (_vendorGroups == null || _vendorGroups.Count == 0)
+            {
+                cboVendorGroup.DataSource = null;
+                cboVendorGroup.Items.Clear();
+                cboVendorGroup.Items.Add("-- No Vendor Groups Found --");
+                cboVendorGroup.SelectedIndex = 0;
+                cboVendorGroup.Enabled = false;
+                Log.Information("No vendor groups found");
+                return;
+            }
+
+            // Bind to ComboBox on UI thread
+            cboVendorGroup.Enabled = true;
+            cboVendorGroup.DataSource = _vendorGroups;
+            cboVendorGroup.DisplayMember = "VendorGroupCode";
+            cboVendorGroup.ValueMember = "VendorGroupCode";
+
+            if (_vendorGroups.Count > 0)
+            {
+                cboVendorGroup.SelectedIndex = 0;
+            }
+        }
+
+        private void BindJobsToComboBox()
+        {
+            if (_jobs == null || _jobs.Count == 0)
+            {
+                cboJob.DataSource = null;
+                cboJob.Items.Clear();
+                cboJob.Items.Add("-- No Jobs Found --");
+                cboJob.SelectedIndex = 0;
+                cboJob.Enabled = false;
+                Log.Information("No jobs found");
+                return;
+            }
+
+            // Bind to ComboBox on UI thread
+            cboJob.Enabled = true;
+            cboJob.DataSource = _jobs;
+            cboJob.DisplayMember = "Description";
+            cboJob.ValueMember = "JobNumber";
+
+            if (_jobs.Count > 0)
+            {
+                cboJob.SelectedIndex = 0;
+            }
+        }
+
+        private async void cboVendorGroup_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cboVendorGroup.SelectedValue == null || !(cboVendorGroup.SelectedValue is string))
+                return;
+
+            string selectedVendorGroup = (string)cboVendorGroup.SelectedValue;
+            await LoadVendorsAsync(selectedVendorGroup);
+        }
+
+        private async Task LoadVendorsAsync(string vendorGroup)
+        {
+            try
+            {
+                SetStatus($"Loading vendors for vendor group {vendorGroup}...", true);
+
+                // Get connection string
+                string? connectionString = _configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    Log.Warning("Connection string not found, cannot load vendors");
+                    return;
+                }
+
+                // Create temporary query service to load vendors
+                var queryService = new PdfQueryService(connectionString);
+                
+                // Load vendors from database
+                _vendors = await queryService.GetVendorsAsync(vendorGroup);
+
+                // Update UI on the UI thread
+                if (InvokeRequired)
+                {
+                    Invoke(() => BindVendorsToComboBox());
+                }
+                else
+                {
+                    BindVendorsToComboBox();
+                }
+
+                Log.Information($"Loaded {_vendors.Count} vendors for vendor group {vendorGroup}");
+                SetStatus("Ready", false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error loading vendors for vendor group {vendorGroup}");
+                cboVendor.DataSource = null;
+                cboVendor.Items.Clear();
+                SetStatus("Error loading vendors", false);
+            }
+        }
+
+        private void BindVendorsToComboBox()
+        {
+            if (_vendors == null || _vendors.Count == 0)
+            {
+                cboVendor.DataSource = null;
+                cboVendor.Items.Clear();
+                cboVendor.Items.Add("-- No Vendors Found --");
+                cboVendor.SelectedIndex = 0;
+                cboVendor.Enabled = false;
+                Log.Information("No vendors found");
+                return;
+            }
+
+            // Bind to ComboBox on UI thread
+            cboVendor.Enabled = true;
+            cboVendor.DataSource = _vendors;
+            cboVendor.DisplayMember = "Name";
+            cboVendor.ValueMember = "VendorNumber";
+
+            if (_vendors.Count > 0)
+            {
+                cboVendor.SelectedIndex = 0;
+            }
+        }
+
         private void grpParameters_Enter(object sender, EventArgs e)
         {
 
+        }
+
+        private void InitializeDateTypeDropdown()
+        {
+            // Load predefined date types
+            var dateTypes = DateType.GetDateTypes();
+            
+            cboDateType.DataSource = dateTypes;
+            cboDateType.DisplayMember = "DisplayName";
+            cboDateType.ValueMember = "Code";
+            
+            // Set default selection to first item (Financial Period)
+            if (dateTypes.Count > 0)
+            {
+                cboDateType.SelectedIndex = 0;
+            }
+
+            Log.Information("Date Type dropdown initialized with {Count} options", dateTypes.Count);
         }
     }
 }

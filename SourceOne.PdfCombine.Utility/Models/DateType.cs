@@ -1,0 +1,29 @@
+namespace SourceOne.PdfCombine.Utility.Models
+{
+    /// <summary>
+    /// Represents a date type option for filtering
+    /// </summary>
+    public class DateType
+    {
+        public string Code { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+
+        /// <summary>
+        /// Gets the predefined list of date types
+        /// </summary>
+        public static List<DateType> GetDateTypes()
+        {
+            return new List<DateType>
+            {
+                new DateType { Code = "FinancialPeriod", DisplayName = "Financial Period" },
+                new DateType { Code = "InvoiceDate", DisplayName = "Invoice Date" },
+                new DateType { Code = "AttachDate", DisplayName = "Attach Date" }
+            };
+        }
+    }
+}

@@ -1,7 +1,7 @@
 namespace SourceOne.PdfCombine.Utility.Models;
 
 /// <summary>
-/// Represents a record from the urptJFKS_Unallocated_PDF_Query_S1S stored procedure
+/// Represents a record from the urptMycoPDFSearchAP_S1S stored procedure
 /// </summary>
 public class UnallocatedPdfRecord
 {
