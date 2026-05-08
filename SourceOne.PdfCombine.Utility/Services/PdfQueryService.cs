@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Serilog;
 using SourceOne.PdfCombine.Utility.Models;
 using System.Data;
@@ -19,26 +19,25 @@ public class PdfQueryService
     }
 
     /// <summary>
-    /// Executes the urptMycoPDFSearchAP_S1S stored procedure
+    /// Executes the urptMycoPDFSearchAP_S1S stored procedure.
+    ///
+    /// SP contract:
+    ///   @VendorGroup  tinyint  - required, no NULL path in WHERE clause
+    ///   @Vendor       int      - SP converts NULL → -1 internally; we pass -1 for "all"
+    ///   @Job          varchar  - SP converts NULL → '-1' internally; we pass '-1' for "all"
+    ///   @DateType     varchar  - 'Financial Period' | 'Invoice Date' | 'Attach Date'
     /// </summary>
-    /// <param name="company">Company ID (APCo and JCCo)</param>
-    /// <param name="beginDate">Begin date for filtering</param>
-    /// <param name="endDate">End date for filtering</param>
-    /// <param name="dateType">Date type filter - 'FinancialPeriod', 'InvoiceDate', or 'AttachDate'</param>
-    /// <param name="vendorGroup">Vendor Group code (optional)</param>
-    /// <param name="vendor">Vendor number (optional)</param>
-    /// <param name="job">Job number (optional)</param>
-    /// <returns>List of unallocated PDF records</returns>
     public async Task<List<UnallocatedPdfRecord>> GetUnallocatedPdfRecordsAsync(
-        int company, 
-        DateTime beginDate, 
+        int company,
+        DateTime beginDate,
         DateTime endDate,
         string? dateType = null,
         string? vendorGroup = null,
         int? vendor = null,
         string? job = null)
     {
-        Log.Debug("Executing urptMycoPDFSearchAP_S1S with parameters: Company={Company}, BeginDate={BeginDate:yyyy-MM-dd}, EndDate={EndDate:yyyy-MM-dd}, DateType={DateType}, VendorGroup={VendorGroup}, Vendor={Vendor}, Job={Job}",
+        Log.Debug(
+            "Executing urptMycoPDFSearchAP_S1S: Company={Company}, Begin={BeginDate:yyyy-MM-dd}, End={EndDate:yyyy-MM-dd}, DateType={DateType}, VendorGroup={VendorGroup}, Vendor={Vendor}, Job={Job}",
             company, beginDate, endDate, dateType, vendorGroup, vendor, job);
 
         var records = new List<UnallocatedPdfRecord>();
@@ -49,20 +48,30 @@ public class PdfQueryService
             using var command = new SqlCommand("dbo.urptMycoPDFSearchAP_S1S", connection)
             {
                 CommandType = CommandType.StoredProcedure,
-                CommandTimeout = 300 // 5 minutes timeout
+                CommandTimeout = 300
             };
 
-            // Add parameters
+            // @DateType — must match SP literals exactly (spaces included)
             command.Parameters.AddWithValue("@APCo", company);
-            command.Parameters.AddWithValue("@JCCo", company);
             command.Parameters.AddWithValue("@BeginDate", beginDate);
             command.Parameters.AddWithValue("@EndDate", endDate);
-            command.Parameters.AddWithValue("@DateType", string.IsNullOrWhiteSpace(dateType) ? (object)DBNull.Value : dateType);
-            command.Parameters.AddWithValue("@VendorGroup", vendorGroup != null ? (object)byte.Parse(vendorGroup) : DBNull.Value);
-            command.Parameters.AddWithValue("@Vendor", vendor.HasValue ? (object)vendor.Value : DBNull.Value);
-            command.Parameters.AddWithValue("@Job", string.IsNullOrWhiteSpace(job) ? (object)DBNull.Value : job);
-            command.Parameters.AddWithValue("@BatchMth", DBNull.Value);
-            command.Parameters.AddWithValue("@BatchId", DBNull.Value);
+            command.Parameters.AddWithValue("@DateType",
+                string.IsNullOrWhiteSpace(dateType) ? "Financial Period" : dateType);
+
+            // @VendorGroup — SP WHERE clause has no null check; always pass a real byte value
+            command.Parameters.AddWithValue("@VendorGroup",
+                !string.IsNullOrWhiteSpace(vendorGroup) ? byte.Parse(vendorGroup) : (byte)1);
+
+            // @Vendor — SP uses sentinel -1 to mean "all vendors"
+            command.Parameters.AddWithValue("@Vendor",
+                vendor.HasValue && vendor.Value > 0 ? vendor.Value : -1);
+
+            // @JCCo — same as APCo
+            command.Parameters.AddWithValue("@JCCo", company);
+
+            // @Job — SP uses sentinel '-1' to mean "all jobs"
+            command.Parameters.AddWithValue("@Job",
+                string.IsNullOrWhiteSpace(job) ? "-1" : job);
 
             await connection.OpenAsync();
             Log.Debug("Database connection opened successfully");
@@ -72,22 +81,19 @@ public class PdfQueryService
             {
                 var record = new UnallocatedPdfRecord
                 {
-                    Vendor = reader.GetInt32(reader.GetOrdinal("Vendor")),
-                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? null : reader.GetString(reader.GetOrdinal("Name")),
-                    Invoice = reader.IsDBNull(reader.GetOrdinal("Invoice")) ? null : reader.GetString(reader.GetOrdinal("Invoice")),
-                    Job = reader.IsDBNull(reader.GetOrdinal("Job")) ? null : reader.GetString(reader.GetOrdinal("Job")),
-                    Expense_Account = reader.IsDBNull(reader.GetOrdinal("Expense_Account")) ? null : reader.GetString(reader.GetOrdinal("Expense_Account")),
-                    Amount = reader.GetDecimal(reader.GetOrdinal("Amount")),
-                    Invoice_Date = reader.IsDBNull(reader.GetOrdinal("Invoice_Date")) ? null : reader.GetDateTime(reader.GetOrdinal("Invoice_Date")),
-                    Item = reader.IsDBNull(reader.GetOrdinal("item")) ? null : reader.GetString(reader.GetOrdinal("item")),
-                    UniqueAttchID = reader.IsDBNull(reader.GetOrdinal("UniqueAttchID")) ? null : reader.GetGuid(reader.GetOrdinal("UniqueAttchID")),
-                    AddDate = reader.IsDBNull(reader.GetOrdinal("AddDate")) ? null : reader.GetDateTime(reader.GetOrdinal("AddDate")),
-                    OrigFileName = reader.IsDBNull(reader.GetOrdinal("OrigFileName")) ? null : reader.GetString(reader.GetOrdinal("OrigFileName")),
-
-                    //UniqueAttchID_Line = reader.IsDBNull(11) ? Guid.Empty : reader.GetGuid(11), // Column index for second UniqueAttchID
-                    //AddDate_Line = reader.IsDBNull(12) ? DateTime.MinValue : reader.GetDateTime(12), // Column index for second AddDate
-                    //OrigFileName_Line = reader.IsDBNull(13) ? null : reader.GetString(13), // Column index for second OrigFileName
-                    DateEntered = reader.IsDBNull(reader.GetOrdinal("dateEntered")) ? null : reader.GetDateTime(reader.GetOrdinal("dateEntered"))
+                    Vendor          = reader.GetInt32(reader.GetOrdinal("Vendor")),
+                    Name            = reader.IsDBNull(reader.GetOrdinal("Name"))              ? null : reader.GetString(reader.GetOrdinal("Name")),
+                    Invoice         = reader.IsDBNull(reader.GetOrdinal("Invoice"))           ? null : reader.GetString(reader.GetOrdinal("Invoice")),
+                    Job             = reader.IsDBNull(reader.GetOrdinal("Job"))               ? null : reader.GetString(reader.GetOrdinal("Job")),
+                    JobName         = reader.IsDBNull(reader.GetOrdinal("JobName"))           ? null : reader.GetString(reader.GetOrdinal("JobName")),
+                    Expense_Account = reader.IsDBNull(reader.GetOrdinal("Expense_Account"))   ? null : reader.GetString(reader.GetOrdinal("Expense_Account")),
+                    Amount          = reader.GetDecimal(reader.GetOrdinal("Amount")),
+                    Invoice_Date    = reader.IsDBNull(reader.GetOrdinal("Invoice_Date"))      ? null : reader.GetDateTime(reader.GetOrdinal("Invoice_Date")),
+                    Item            = reader.IsDBNull(reader.GetOrdinal("item"))              ? null : reader.GetString(reader.GetOrdinal("item")),
+                    UniqueAttchID   = reader.IsDBNull(reader.GetOrdinal("APTHUniqueAttchID")) ? null : reader.GetGuid(reader.GetOrdinal("APTHUniqueAttchID")),
+                    AddDate         = reader.IsDBNull(reader.GetOrdinal("APTLAddDate"))       ? null : reader.GetDateTime(reader.GetOrdinal("APTLAddDate")),
+                    OrigFileName    = reader.IsDBNull(reader.GetOrdinal("APTHOrigFileName"))  ? null : reader.GetString(reader.GetOrdinal("APTHOrigFileName")),
+                    DateEntered     = reader.IsDBNull(reader.GetOrdinal("dateEntered"))       ? null : reader.GetDateTime(reader.GetOrdinal("dateEntered"))
                 };
 
                 records.Add(record);
@@ -107,8 +113,6 @@ public class PdfQueryService
     /// <summary>
     /// Executes the brptGetAttachmentData_S1S stored procedure to retrieve attachment data
     /// </summary>
-    /// <param name="uniqueAttchID">The unique attachment ID (GUID format)</param>
-    /// <returns>Attachment data including the file bytes and metadata</returns>
     public async Task<AttachmentData?> GetAttachmentDataAsync(Guid uniqueAttchID)
     {
         Log.Debug("Executing brptGetAttachmentData_S1S for UniqueAttchID={UniqueAttchID}", uniqueAttchID);
@@ -119,10 +123,9 @@ public class PdfQueryService
             using var command = new SqlCommand("dbo.brptGetAttachmentData_S1S", connection)
             {
                 CommandType = CommandType.StoredProcedure,
-                CommandTimeout = 300 // 5 minutes timeout
+                CommandTimeout = 300
             };
 
-            // Add parameter
             command.Parameters.AddWithValue("@UniqueAttchID", uniqueAttchID);
 
             await connection.OpenAsync();
@@ -132,19 +135,19 @@ public class PdfQueryService
             {
                 var attachmentData = new AttachmentData
                 {
-                    HQCo = reader.IsDBNull(reader.GetOrdinal("HQCo")) ? 0 :  reader.GetByte(reader.GetOrdinal("HQCo")),
-                    FormName = reader.IsDBNull(reader.GetOrdinal("FormName")) ? null : reader.GetString(reader.GetOrdinal("FormName")),
-                    KeyField = reader.IsDBNull(reader.GetOrdinal("KeyField")) ? null : reader.GetString(reader.GetOrdinal("KeyField")),
-                    Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
-                    AddedBy = reader.IsDBNull(reader.GetOrdinal("AddedBy")) ? null : reader.GetString(reader.GetOrdinal("AddedBy")),
-                    AddDate = reader.IsDBNull(reader.GetOrdinal("AddDate")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("AddDate")),
-                    DocName = reader.IsDBNull(reader.GetOrdinal("DocName")) ? null : reader.GetString(reader.GetOrdinal("DocName")),
-                    AttachmentID = reader.GetInt32(reader.GetOrdinal("AttachmentID")),
-                    TableName = reader.IsDBNull(reader.GetOrdinal("TableName")) ? null : reader.GetString(reader.GetOrdinal("TableName")),
-                    UniqueAttchID = reader.GetGuid(reader.GetOrdinal("UniqueAttchID")),
-                    OrigFileName = reader.IsDBNull(reader.GetOrdinal("OrigFileName")) ? null : reader.GetString(reader.GetOrdinal("OrigFileName")),
-                    FileBytes = reader.IsDBNull(reader.GetOrdinal("AttachmentData")) ? null : (byte[])reader["AttachmentData"],
-                    AttachmentFileType = reader.IsDBNull(reader.GetOrdinal("AttachmentFileType")) ? null : reader.GetString(reader.GetOrdinal("AttachmentFileType"))
+                    HQCo               = reader.IsDBNull(reader.GetOrdinal("HQCo"))               ? 0                  : reader.GetByte(reader.GetOrdinal("HQCo")),
+                    FormName           = reader.IsDBNull(reader.GetOrdinal("FormName"))           ? null               : reader.GetString(reader.GetOrdinal("FormName")),
+                    KeyField           = reader.IsDBNull(reader.GetOrdinal("KeyField"))           ? null               : reader.GetString(reader.GetOrdinal("KeyField")),
+                    Description        = reader.IsDBNull(reader.GetOrdinal("Description"))        ? null               : reader.GetString(reader.GetOrdinal("Description")),
+                    AddedBy            = reader.IsDBNull(reader.GetOrdinal("AddedBy"))            ? null               : reader.GetString(reader.GetOrdinal("AddedBy")),
+                    AddDate            = reader.IsDBNull(reader.GetOrdinal("AddDate"))            ? DateTime.MinValue  : reader.GetDateTime(reader.GetOrdinal("AddDate")),
+                    DocName            = reader.IsDBNull(reader.GetOrdinal("DocName"))            ? null               : reader.GetString(reader.GetOrdinal("DocName")),
+                    AttachmentID       = reader.GetInt32(reader.GetOrdinal("AttachmentID")),
+                    TableName          = reader.IsDBNull(reader.GetOrdinal("TableName"))          ? null               : reader.GetString(reader.GetOrdinal("TableName")),
+                    UniqueAttchID      = reader.GetGuid(reader.GetOrdinal("UniqueAttchID")),
+                    OrigFileName       = reader.IsDBNull(reader.GetOrdinal("OrigFileName"))       ? null               : reader.GetString(reader.GetOrdinal("OrigFileName")),
+                    FileBytes          = reader.IsDBNull(reader.GetOrdinal("AttachmentData"))     ? null               : (byte[])reader["AttachmentData"],
+                    AttachmentFileType = reader.IsDBNull(reader.GetOrdinal("AttachmentFileType")) ? null               : reader.GetString(reader.GetOrdinal("AttachmentFileType"))
                 };
 
                 Log.Debug("Successfully retrieved attachment data for {FileName} ({FileSize})",
@@ -164,48 +167,8 @@ public class PdfQueryService
     }
 
     /// <summary>
-    /// Gets the count of unallocated PDF records
-    /// </summary>
-    public async Task<int> GetRecordCountAsync(
-        int company, 
-        DateTime beginDate, 
-        DateTime endDate,
-        string? dateType = null,
-        string? vendorGroup = null,
-        int? vendor = null,
-        string? job = null)
-    {
-        using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new SqlCommand("dbo.urptMycoPDFSearchAP_S1S", connection);
-        command.CommandType = CommandType.StoredProcedure;
-        command.Parameters.AddWithValue("@APCo", company);
-        command.Parameters.AddWithValue("@JCCo", company);
-        command.Parameters.AddWithValue("@BeginDate", beginDate);
-        command.Parameters.AddWithValue("@EndDate", endDate);
-        command.Parameters.AddWithValue("@DateType", string.IsNullOrWhiteSpace(dateType) ? (object)DBNull.Value : dateType);
-        command.Parameters.AddWithValue("@VendorGroup", vendorGroup != null ? (object)byte.Parse(vendorGroup) : DBNull.Value);
-        command.Parameters.AddWithValue("@Vendor", vendor.HasValue ? (object)vendor.Value : DBNull.Value);
-        command.Parameters.AddWithValue("@Job", string.IsNullOrWhiteSpace(job) ? (object)DBNull.Value : job);
-        command.Parameters.AddWithValue("@BatchMth", DBNull.Value);
-        command.Parameters.AddWithValue("@BatchId", DBNull.Value);
-
-        var records = new List<UnallocatedPdfRecord>();
-        using var reader = await command.ExecuteReaderAsync();
-        
-        while (await reader.ReadAsync())
-        {
-            records.Add(new UnallocatedPdfRecord());
-        }
-
-        return records.Count;
-    }
-
-    /// <summary>
     /// Gets the list of companies from JCCO table
     /// </summary>
-    /// <returns>List of companies with JCCo, Name, and Label</returns>
     public async Task<List<Company>> GetCompaniesAsync()
     {
         var companies = new List<Company>();
@@ -226,28 +189,20 @@ public class PdfQueryService
 
             while (await reader.ReadAsync())
             {
-                // Handle both byte and int types for JCCo
-                int jcCoValue;
                 var jcCoOrdinal = reader.GetOrdinal("JCCo");
-                
-                if (reader.GetFieldType(jcCoOrdinal) == typeof(byte))
-                {
-                    jcCoValue = reader.GetByte(jcCoOrdinal);
-                }
-                else
-                {
-                    jcCoValue = reader.GetInt32(jcCoOrdinal);
-                }
+                int jcCoValue = reader.GetFieldType(jcCoOrdinal) == typeof(byte)
+                    ? reader.GetByte(jcCoOrdinal)
+                    : reader.GetInt32(jcCoOrdinal);
 
                 companies.Add(new Company
                 {
-                    JCCo = jcCoValue,
-                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? null : reader.GetString(reader.GetOrdinal("Name")),
+                    JCCo  = jcCoValue,
+                    Name  = reader.IsDBNull(reader.GetOrdinal("Name"))  ? null : reader.GetString(reader.GetOrdinal("Name")),
                     Label = reader.IsDBNull(reader.GetOrdinal("Label")) ? null : reader.GetString(reader.GetOrdinal("Label"))
                 });
             }
 
-            Log.Information($"Retrieved {companies.Count} companies from database");
+            Log.Information("Retrieved {Count} companies from database", companies.Count);
         }
         catch (Exception ex)
         {
@@ -259,10 +214,8 @@ public class PdfQueryService
     }
 
     /// <summary>
-    /// Gets the list of vendor groups from HQCO table based on company
+    /// Gets vendor groups from HQCO table based on company
     /// </summary>
-    /// <param name="company">Company ID (HQCo)</param>
-    /// <returns>List of distinct vendor groups</returns>
     public async Task<List<VendorGroup>> GetVendorGroupsAsync(int company)
     {
         var vendorGroups = new List<VendorGroup>();
@@ -272,62 +225,31 @@ public class PdfQueryService
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            var query = "SELECT VendorGroup FROM HQCO WHERE HQCo = @Company";
-
-            using var command = new SqlCommand(query, connection);
+            using var command = new SqlCommand("SELECT VendorGroup FROM HQCO WHERE HQCo = @Company", connection);
             command.Parameters.AddWithValue("@Company", company);
-            
+
             using var reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
-                if (reader.IsDBNull(reader.GetOrdinal("VendorGroup")))
+                var ordinal = reader.GetOrdinal("VendorGroup");
+                if (reader.IsDBNull(ordinal))
                     continue;
 
-                string? vendorGroupValue = null;
-                var vendorGroupOrdinal = reader.GetOrdinal("VendorGroup");
-                
-                // Handle different data types for VendorGroup
-                var fieldType = reader.GetFieldType(vendorGroupOrdinal);
-                
-                if (fieldType == typeof(byte))
-                {
-                    // If it's a byte, convert to string
-                    var byteValue = reader.GetByte(vendorGroupOrdinal);
-                    vendorGroupValue = byteValue.ToString();
-                }
-                else if (fieldType == typeof(string))
-                {
-                    // If it's already a string
-                    vendorGroupValue = reader.GetString(vendorGroupOrdinal);
-                }
-                else if (fieldType == typeof(int) || fieldType == typeof(short))
-                {
-                    // If it's an int or short
-                    var intValue = reader.GetInt32(vendorGroupOrdinal);
-                    vendorGroupValue = intValue.ToString();
-                }
-                else
-                {
-                    // Fallback: use GetValue and convert to string
-                    var value = reader.GetValue(vendorGroupOrdinal);
-                    vendorGroupValue = value?.ToString();
-                }
+                var fieldType = reader.GetFieldType(ordinal);
+                string? vendorGroupValue = fieldType == typeof(byte)   ? reader.GetByte(ordinal).ToString()
+                                         : fieldType == typeof(string) ? reader.GetString(ordinal)
+                                                                       : reader.GetValue(ordinal)?.ToString();
 
                 if (!string.IsNullOrWhiteSpace(vendorGroupValue))
-                {
-                    vendorGroups.Add(new VendorGroup
-                    {
-                        VendorGroupCode = vendorGroupValue
-                    });
-                }
+                    vendorGroups.Add(new VendorGroup { VendorGroupCode = vendorGroupValue });
             }
 
-            Log.Information($"Retrieved {vendorGroups.Count} vendor groups for company {company}");
+            Log.Information("Retrieved {Count} vendor groups for company {Company}", vendorGroups.Count, company);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error retrieving vendor groups from database for company {Company}", company);
+            Log.Error(ex, "Error retrieving vendor groups for company {Company}", company);
             throw;
         }
 
@@ -335,10 +257,8 @@ public class PdfQueryService
     }
 
     /// <summary>
-    /// Gets the list of vendors from APVM table based on vendor group
+    /// Gets vendors from APVM table based on vendor group
     /// </summary>
-    /// <param name="vendorGroup">Vendor Group code</param>
-    /// <returns>List of vendors with Vendor number and Name</returns>
     public async Task<List<Vendor>> GetVendorsAsync(string vendorGroup)
     {
         var vendors = new List<Vendor>();
@@ -348,46 +268,32 @@ public class PdfQueryService
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            var query = "SELECT Vendor, Name FROM APVM WHERE VendorGroup = @VendorGroup ORDER BY Name";
-
-            using var command = new SqlCommand(query, connection);
+            using var command = new SqlCommand(
+                "SELECT Vendor, Name FROM APVM WHERE VendorGroup = @VendorGroup ORDER BY Name", connection);
             command.Parameters.AddWithValue("@VendorGroup", vendorGroup);
-            
+
             using var reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
-                int vendorNumber;
                 var vendorOrdinal = reader.GetOrdinal("Vendor");
-                
-                // Handle different data types for Vendor
                 var fieldType = reader.GetFieldType(vendorOrdinal);
-                
-                if (fieldType == typeof(byte))
-                {
-                    vendorNumber = reader.GetByte(vendorOrdinal);
-                }
-                else if (fieldType == typeof(short))
-                {
-                    vendorNumber = reader.GetInt16(vendorOrdinal);
-                }
-                else
-                {
-                    vendorNumber = reader.GetInt32(vendorOrdinal);
-                }
+                int vendorNumber = fieldType == typeof(byte)  ? reader.GetByte(vendorOrdinal)
+                                 : fieldType == typeof(short) ? reader.GetInt16(vendorOrdinal)
+                                                              : reader.GetInt32(vendorOrdinal);
 
                 vendors.Add(new Vendor
                 {
                     VendorNumber = vendorNumber,
-                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? null : reader.GetString(reader.GetOrdinal("Name"))
+                    Name         = reader.IsDBNull(reader.GetOrdinal("Name")) ? null : reader.GetString(reader.GetOrdinal("Name"))
                 });
             }
 
-            Log.Information($"Retrieved {vendors.Count} vendors for vendor group {vendorGroup}");
+            Log.Information("Retrieved {Count} vendors for vendor group {VendorGroup}", vendors.Count, vendorGroup);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error retrieving vendors from database for vendor group {VendorGroup}", vendorGroup);
+            Log.Error(ex, "Error retrieving vendors for vendor group {VendorGroup}", vendorGroup);
             throw;
         }
 
@@ -395,11 +301,9 @@ public class PdfQueryService
     }
 
     /// <summary>
-    /// Gets the list of jobs from JCJM table based on company
+    /// Gets jobs filtered by company, and optionally by vendor or vendor group.
     /// </summary>
-    /// <param name="company">Company ID (JCCo)</param>
-    /// <returns>List of jobs with Job number and Description</returns>
-    public async Task<List<Job>> GetJobsAsync(int company)
+    public async Task<List<Job>> GetJobsAsync(int company, string? vendorGroup = null, int? vendor = null)
     {
         var jobs = new List<Job>();
 
@@ -408,27 +312,91 @@ public class PdfQueryService
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            var query = "SELECT Job, Description FROM JCJM WHERE JCCo = @Company ORDER BY Description";
+            string query;
+            SqlCommand command;
 
-            using var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@Company", company);
-            
+            if (vendor.HasValue && vendor.Value > 0)
+            {
+                // Filter by specific vendor (and optionally vendor group)
+                query = @"
+                    SELECT DISTINCT 
+                        APTL.JCCo, APTL.Job, JCJM.Description,
+                        APTL.Job + ' - ' + JCJM.Description AS JobName
+                    FROM dbo.APTL
+                        INNER JOIN dbo.APTH
+                            ON APTL.APCo = APTH.APCo
+                            AND APTL.Mth = APTH.Mth 
+                            AND APTL.APTrans = APTH.APTrans
+                        INNER JOIN JCJM 
+                            ON APTL.JCCo = JCJM.JCCo
+                            AND APTL.Job = JCJM.Job
+                    WHERE APTH.APCo = @Company
+                        AND APTH.Vendor = @Vendor
+                        AND (@VendorGroup IS NULL OR APTH.VendorGroup = @VendorGroup)
+                    ORDER BY APTL.Job";
+
+                command = new SqlCommand(query, connection);
+                command.Parameters.AddWithValue("@Company", company);
+                command.Parameters.AddWithValue("@Vendor", vendor.Value);
+                command.Parameters.AddWithValue("@VendorGroup",
+                    !string.IsNullOrWhiteSpace(vendorGroup) ? (object)byte.Parse(vendorGroup) : DBNull.Value);
+
+                Log.Information("Retrieving jobs for company {Company}, vendor {Vendor}{VG}",
+                    company, vendor, vendorGroup != null ? $", vendor group {vendorGroup}" : "");
+            }
+            else if (!string.IsNullOrWhiteSpace(vendorGroup))
+            {
+                // Filter by vendor group only
+                query = @"
+                    SELECT DISTINCT 
+                        APTL.JCCo, APTL.Job, JCJM.Description,
+                        APTL.Job + ' - ' + JCJM.Description AS JobName
+                    FROM dbo.APTL
+                        INNER JOIN dbo.APTH
+                            ON APTL.APCo = APTH.APCo
+                            AND APTL.Mth = APTH.Mth 
+                            AND APTL.APTrans = APTH.APTrans
+                        INNER JOIN JCJM 
+                            ON APTL.JCCo = JCJM.JCCo
+                            AND APTL.Job = JCJM.Job
+                    WHERE APTH.APCo = @Company
+                        AND APTH.VendorGroup = @VendorGroup
+                    ORDER BY APTL.Job";
+
+                command = new SqlCommand(query, connection);
+                command.Parameters.AddWithValue("@Company", company);
+                command.Parameters.AddWithValue("@VendorGroup", byte.Parse(vendorGroup));
+
+                Log.Information("Retrieving jobs for company {Company}, vendor group {VendorGroup}", company, vendorGroup);
+            }
+            else
+            {
+                // No filters — all jobs for company
+                query = "SELECT Job, Description, Job + ' - ' + Description AS JobName FROM JCJM WHERE JCCo = @Company ORDER BY Job";
+                command = new SqlCommand(query, connection);
+                command.Parameters.AddWithValue("@Company", company);
+
+                Log.Information("Retrieving all jobs for company {Company}", company);
+            }
+
             using var reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
                 jobs.Add(new Job
                 {
-                    JobNumber = reader.IsDBNull(reader.GetOrdinal("Job")) ? null : reader.GetString(reader.GetOrdinal("Job")),
-                    Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description"))
+                    JobNumber   = reader.IsDBNull(reader.GetOrdinal("Job"))         ? null : reader.GetString(reader.GetOrdinal("Job")),
+                    Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
+                    JobName     = reader.IsDBNull(reader.GetOrdinal("JobName"))     ? null : reader.GetString(reader.GetOrdinal("JobName"))
                 });
             }
 
-            Log.Information($"Retrieved {jobs.Count} jobs for company {company}");
+            Log.Information("Retrieved {Count} jobs for company {Company}", jobs.Count, company);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error retrieving jobs from database for company {Company}", company);
+            Log.Error(ex, "Error retrieving jobs for company {Company}, vendorGroup {VendorGroup}, vendor {Vendor}",
+                company, vendorGroup, vendor);
             throw;
         }
 

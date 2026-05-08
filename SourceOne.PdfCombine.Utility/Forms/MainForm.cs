@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.ComponentModel;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using SourceOne.PdfCombine.Utility.Configuration;
@@ -21,7 +22,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private List<Company>? _companies; // Track available companies
         private List<VendorGroup>? _vendorGroups; // Track available vendor groups
         private List<Vendor>? _vendors; // Track available vendors
-        private List<Job>? _jobs; // Track available jobs
+        private List<Job>? _jobs; // Track available job
 
         public MainForm()
         {
@@ -70,26 +71,42 @@ namespace SourceOne.PdfCombine.Utility.Forms
             };
             dgvRecords.Columns.Add(viewButtonColumn);
 
+            // Add Download button column
+            var downloadButtonColumn = new DataGridViewButtonColumn
+            {
+                HeaderText = "Download",
+                Text = "Download",
+                UseColumnTextForButtonValue = true,
+                Width = 80,
+                Name = "DownloadColumn"
+            };
+            dgvRecords.Columns.Add(downloadButtonColumn);
+
             // Add columns
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Vendor",
                 DataPropertyName = "Vendor",
-                Width = 80
+                Width = 80,
+                Name = "VendorColumn",
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Vendor Name",
                 DataPropertyName = "Name",
-                Width = 200
+                Width = 200,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Invoice",
                 DataPropertyName = "Invoice",
-                Width = 120
+                Width = 120,
+                Name = "InvoiceColumn",
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
@@ -97,21 +114,24 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 HeaderText = "Invoice Date",
                 DataPropertyName = "Invoice_Date",
                 Width = 100,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd" }
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd" },
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Job",
-                DataPropertyName = "Job",
-                Width = 100
+                DataPropertyName = "JobName",
+                Width = 100,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Expense Account",
                 DataPropertyName = "Expense_Account",
-                Width = 120
+                Width = 120,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
@@ -119,44 +139,43 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 HeaderText = "Amount",
                 DataPropertyName = "Amount",
                 Width = 100,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2" }
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2" },
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Item",
                 DataPropertyName = "Item",
-                Width = 200
+                Width = 200,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Attachment ID",
                 DataPropertyName = "UniqueAttchID",
-                Width = 250
+                Width = 250,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "File Name",
                 DataPropertyName = "OrigFileName",
-                Width = 200
+                Width = 200,
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
-            dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                HeaderText = "Add Date",
-                DataPropertyName = "AddDate",
-                Width = 100,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd" }
-            });
+            // AddDate column removed from display
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
                 HeaderText = "Date Entered",
                 DataPropertyName = "DateEntered",
                 Width = 140,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm:ss" }
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm:ss" },
+                SortMode = DataGridViewColumnSortMode.Automatic
             });
 
             // Apply formatting
@@ -168,18 +187,141 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             // Add cell click event handler for View button
             dgvRecords.CellContentClick += DgvRecords_CellContentClick;
+
+            // Add column header click event handler for sorting
+            dgvRecords.ColumnHeaderMouseClick += DgvRecords_ColumnHeaderMouseClick;
         }
 
         private void DgvRecords_CellContentClick(object? sender, DataGridViewCellEventArgs e)
         {
+            // Check if row index is valid
+            if (e.RowIndex < 0)
+                return;
+
+            var record = dgvRecords.Rows[e.RowIndex].DataBoundItem as UnallocatedPdfRecord;
+            if (record == null || !record.UniqueAttchID.HasValue)
+                return;
+
             // Check if the click is on the View button column
-            if (e.RowIndex >= 0 && e.ColumnIndex == dgvRecords.Columns["ViewColumn"]!.Index)
+            if (e.ColumnIndex == dgvRecords.Columns["ViewColumn"]!.Index)
             {
-                var record = dgvRecords.Rows[e.RowIndex].DataBoundItem as UnallocatedPdfRecord;
-                if (record != null && record.UniqueAttchID.HasValue)
+                OpenPdfFile(record.UniqueAttchID.Value, record.OrigFileName);
+            }
+            // Check if the click is on the Download button column
+            else if (e.ColumnIndex == dgvRecords.Columns["DownloadColumn"]!.Index)
+            {
+                DownloadSinglePdfFile(record.UniqueAttchID.Value, record.OrigFileName);
+            }
+        }
+
+        private void DgvRecords_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            // Skip if clicked on View or Download button columns
+            if (dgvRecords.Columns[e.ColumnIndex].Name == "ViewColumn" ||
+                dgvRecords.Columns[e.ColumnIndex].Name == "DownloadColumn")
+                return;
+
+            if (_records == null || _records.Count == 0)
+                return;
+
+            var column = dgvRecords.Columns[e.ColumnIndex];
+            var propertyName = column.DataPropertyName;
+
+            if (string.IsNullOrWhiteSpace(propertyName))
+                return;
+
+            // Determine sort direction
+            ListSortDirection direction;
+            if (dgvRecords.SortedColumn == column && dgvRecords.SortOrder == SortOrder.Ascending)
+            {
+                direction = ListSortDirection.Descending;
+            }
+            else
+            {
+                direction = ListSortDirection.Ascending;
+            }
+
+            // Apply sort
+            ApplySorting(propertyName, direction);
+
+            Log.Information($"Grid sorted by {propertyName} ({direction})");
+        }
+
+        private void ApplySorting(string propertyName, ListSortDirection direction)
+        {
+            if (_records == null || _records.Count == 0)
+                return;
+
+            try
+            {
+                var sortedRecords = direction == ListSortDirection.Ascending
+                    ? _records.OrderBy(r => GetPropertyValue(r, propertyName)).ToList()
+                    : _records.OrderByDescending(r => GetPropertyValue(r, propertyName)).ToList();
+
+                // Update the binding
+                dgvRecords.DataSource = null;
+                dgvRecords.DataSource = sortedRecords;
+
+                // Update the _records reference
+                _records = sortedRecords;
+
+                // Set sort glyph
+                var column = dgvRecords.Columns.Cast<DataGridViewColumn>()
+                    .FirstOrDefault(c => c.DataPropertyName == propertyName);
+
+                if (column != null)
                 {
-                    OpenPdfFile(record.UniqueAttchID.Value, record.OrigFileName);
+                    dgvRecords.Sort(column, direction);
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error sorting grid by {propertyName}");
+            }
+        }
+
+        private object? GetPropertyValue(UnallocatedPdfRecord record, int propertyIndex)
+        {
+            // Use reflection to get the property name from the column index
+            var property = typeof(UnallocatedPdfRecord).GetProperties()[propertyIndex];
+            return property.GetValue(record);
+        }
+
+        private object? GetPropertyValue(UnallocatedPdfRecord record, string propertyName)
+        {
+            var property = typeof(UnallocatedPdfRecord).GetProperty(propertyName);
+            return property?.GetValue(record);
+        }
+
+        private void ApplyDefaultSorting()
+        {
+            if (_records == null || _records.Count == 0)
+                return;
+
+            try
+            {
+                // Sort by Vendor (ascending) then by Invoice (ascending)
+                _records = _records
+                    .OrderBy(r => r.Vendor)
+                    .ThenBy(r => r.Invoice)
+                    .ToList();
+
+                // Update the binding
+                dgvRecords.DataSource = null;
+                dgvRecords.DataSource = _records;
+
+                // Set sort glyph on Vendor column
+                var vendorColumn = dgvRecords.Columns["VendorColumn"];
+                if (vendorColumn != null)
+                {
+                    dgvRecords.Sort(vendorColumn, ListSortDirection.Ascending);
+                }
+
+                Log.Information("Applied default sorting: Vendor (Ascending), Invoice (Ascending)");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error applying default sorting");
             }
         }
 
@@ -218,6 +360,78 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 MessageBox.Show($"Error opening PDF file: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Log.Error(ex, $"Error opening PDF file for attachment: {attachmentId}");
+            }
+        }
+
+        private void DownloadSinglePdfFile(Guid attachmentId, string? originalFileName)
+        {
+            try
+            {
+                // Check if the file has been saved and we have its path
+                if (!_savedFilePaths.TryGetValue(attachmentId, out string? sourceFilePath))
+                {
+                    MessageBox.Show($"PDF file has not been processed yet.\n\nFile: {originalFileName ?? "Unknown"}\n\nPlease wait for the processing to complete.",
+                        "File Not Available", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Log.Information($"Attempted to download PDF that hasn't been processed: {attachmentId}");
+                    return;
+                }
+
+                if (!File.Exists(sourceFilePath))
+                {
+                    MessageBox.Show($"PDF file not found at: {sourceFilePath}\n\nThe file may have been moved or deleted.",
+                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Log.Warning($"PDF file not found: {sourceFilePath}");
+                    return;
+                }
+
+                // Show save file dialog
+                using var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*",
+                    Title = "Save PDF File",
+                    FileName = originalFileName ?? Path.GetFileName(sourceFilePath),
+                    DefaultExt = "pdf",
+                    AddExtension = true,
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                };
+
+                if (saveFileDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    var destinationPath = saveFileDialog.FileName;
+
+                    // Copy the file to the selected location
+                    File.Copy(sourceFilePath, destinationPath, overwrite: true);
+
+                    Log.Information($"Downloaded PDF file: {originalFileName} to {destinationPath}");
+
+                    var result = MessageBox.Show(
+                        $"PDF file downloaded successfully!\n\n" +
+                        $"File: {Path.GetFileName(destinationPath)}\n" +
+                        $"Location: {destinationPath}\n\n" +
+                        $"Do you want to open the file now?",
+                        "Download Complete",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = destinationPath,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                else
+                {
+                    Log.Information("User cancelled PDF download");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error downloading PDF file: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Log.Error(ex, $"Error downloading PDF file for attachment: {attachmentId}");
             }
         }
 
@@ -273,20 +487,20 @@ namespace SourceOne.PdfCombine.Utility.Forms
             int? vendor = null;
             string? job = null;
 
-            // Get vendor group if selected and valid
-            if (cboVendorGroup.Enabled && cboVendorGroup.SelectedValue != null && cboVendorGroup.SelectedValue is string vg)
+            // Get vendor group if selected and valid (not "All")
+            if (cboVendorGroup.Enabled && cboVendorGroup.SelectedValue != null && cboVendorGroup.SelectedValue is string vg && !string.IsNullOrWhiteSpace(vg))
             {
                 vendorGroup = vg;
             }
 
-            // Get vendor if selected and valid
-            if (cboVendor.Enabled && cboVendor.SelectedValue != null && cboVendor.SelectedValue is int v)
+            // Get vendor if selected and valid (not "All" - which is 0)
+            if (cboVendor.Enabled && cboVendor.SelectedValue != null && cboVendor.SelectedValue is int v && v > 0)
             {
                 vendor = v;
             }
 
-            // Get job if selected and valid
-            if (cboJob.Enabled && cboJob.SelectedValue != null && cboJob.SelectedValue is string j)
+            // Get job if selected and valid (not "All")
+            if (cboJob.Enabled && cboJob.SelectedValue != null && cboJob.SelectedValue is string j && !string.IsNullOrWhiteSpace(j))
             {
                 job = j;
             }
@@ -324,20 +538,22 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Query records with all parameters
                 _records = await _pdfQueryService.GetUnallocatedPdfRecordsAsync(
-                    company, 
-                    beginDate, 
-                    endDate, 
-                    dateType, 
-                    vendorGroup, 
-                    vendor, 
+                    company,
+                    beginDate,
+                    endDate,
+                    dateType,
+                    vendorGroup,
+                    vendor,
                     job);
 
                 Log.Information($"Found {_records.Count} record(s)");
 
                 if (_records.Count > 0)
                 {
+                    // Apply default sorting (Vendor, then Invoice)
+                    ApplyDefaultSorting();
+
                     // Display records in grid
-                    dgvRecords.DataSource = _records;
                     UpdateRecordCount(_records.Count);
 
                     SetStatus("Processing attachments...", true);
@@ -397,7 +613,10 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private async Task ProcessAttachmentsAsync()
         {
             if (_records == null || _fileStorageService == null || _pdfQueryService == null)
+            {
+                Log.Warning("ProcessAttachmentsAsync called with null dependencies");
                 return;
+            }
 
             Log.Information("===========================================");
             Log.Information("Retrieving and saving attachment data...");
@@ -413,7 +632,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 }
             }
 
-            Log.Information($"Found {attachmentIdsToProcess.Count} unique attachment(s) to retrieve");
+            Log.Information($"Found {attachmentIdsToProcess.Count} unique attachment(s) to retrieve from {_records.Count} records");
 
             int successCount = 0;
             int failCount = 0;
@@ -432,9 +651,25 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                     var attachmentData = await _pdfQueryService.GetAttachmentDataAsync(attachmentId);
 
-                    if (attachmentData != null && attachmentData.FileBytes != null && attachmentData.FileBytes.Length > 0)
+                    if (attachmentData == null)
                     {
-                        if (_fileStorageSettings.IsFileTypeAllowed(attachmentData.AttachmentFileType))
+                        failCount++;
+                        Log.Warning($"  ✗ GetAttachmentDataAsync returned null for {attachmentId}");
+                        continue;
+                    }
+
+                    if (attachmentData.FileBytes == null || attachmentData.FileBytes.Length == 0)
+                    {
+                        failCount++;
+                        Log.Warning($"  ✗ No file bytes found for {attachmentId} (FileName: {attachmentData.OrigFileName})");
+                        continue;
+                    }
+
+                    Log.Information($"  Retrieved {attachmentData.FileBytes.Length} bytes for {attachmentData.OrigFileName} (Type: {attachmentData.AttachmentFileType})");
+
+                    if (_fileStorageSettings.IsFileTypeAllowed(attachmentData.AttachmentFileType))
+                    {
+                        try
                         {
                             var savedPath = await _fileStorageService.SaveAttachmentAsync(attachmentData, sequenceNumber);
                             if (!string.IsNullOrWhiteSpace(savedPath))
@@ -450,24 +685,25 @@ namespace SourceOne.PdfCombine.Utility.Forms
                             else
                             {
                                 failCount++;
+                                Log.Warning($"  ✗ SaveAttachmentAsync returned null/empty path for {attachmentData.OrigFileName}");
                             }
                         }
-                        else
+                        catch (Exception saveEx)
                         {
-                            skippedCount++;
-                            Log.Information($"  ⊘ Skipped non-PDF file: {attachmentData.AttachmentFileType}");
+                            failCount++;
+                            Log.Error(saveEx, $"  ✗ Exception while saving {attachmentData.OrigFileName}");
                         }
                     }
                     else
                     {
-                        failCount++;
-                        Log.Warning($"  ✗ No attachment data found");
+                        skippedCount++;
+                        Log.Information($"  ⊘ Skipped non-PDF file: {attachmentData.AttachmentFileType} ({attachmentData.OrigFileName})");
                     }
                 }
                 catch (Exception ex)
                 {
                     failCount++;
-                    Log.Error(ex, $"  ✗ Error processing attachment");
+                    Log.Error(ex, $"  ✗ Error processing attachment {attachmentId}");
                 }
             }
 
@@ -490,7 +726,23 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
             else
             {
-                MessageBox.Show("No PDF files were successfully saved.", "No Files",
+                var errorMessage = new StringBuilder();
+                errorMessage.AppendLine($"No PDF files were successfully saved.");
+                errorMessage.AppendLine();
+                errorMessage.AppendLine($"Summary:");
+                errorMessage.AppendLine($"- Total attachments processed: {attachmentIdsToProcess.Count}");
+                errorMessage.AppendLine($"- Non-PDF files skipped: {skippedCount}");
+                errorMessage.AppendLine($"- Failed: {failCount}");
+                errorMessage.AppendLine();
+                errorMessage.AppendLine($"Please check the log file at:");
+                errorMessage.AppendLine($"Logs\\PdfCombine-{DateTime.Now:yyyyMMdd}.log");
+                errorMessage.AppendLine();
+                errorMessage.AppendLine("Common issues:");
+                errorMessage.AppendLine("- Attachment data is null or empty");
+                errorMessage.AppendLine("- File type is not PDF");
+                errorMessage.AppendLine("- Permission issues writing to temp folder");
+
+                MessageBox.Show(errorMessage.ToString(), "No Files Saved",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -626,7 +878,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
-        private async void btnDownload_Click(object sender, EventArgs e)
+        private void btnDownload_Click(object sender, EventArgs e)
         {
             if (_fileStorageService == null || _savedFileCount == 0)
             {
@@ -637,32 +889,74 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             try
             {
-                // Show folder browser dialog
+                Log.Information("Download button clicked - attempting to show folder dialog");
+
+                string? destinationFolder = ShowFolderSelectionDialog();
+
+                if (string.IsNullOrWhiteSpace(destinationFolder))
+                {
+                    Log.Information("No folder selected or dialog cancelled");
+                    return;
+                }
+
+                Log.Information($"Folder selected: {destinationFolder}");
+
+                // Now perform the async file operations
+                _ = PerformDownloadAsync(destinationFolder);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in download button click handler");
+                MessageBox.Show($"Error: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private string? ShowFolderSelectionDialog()
+        {
+            try
+            {
+                Log.Information("Showing FolderBrowserDialog...");
+                Log.Information($"Current thread apartment state: {Thread.CurrentThread.GetApartmentState()}");
+                
                 using var folderDialog = new FolderBrowserDialog
                 {
                     Description = "Select a folder to save the PDF files",
                     ShowNewFolderButton = true,
-                    RootFolder = Environment.SpecialFolder.MyComputer
+                    UseDescriptionForTitle = true,
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
                 };
 
-                // Show the dialog
-                if (folderDialog.ShowDialog(this) != DialogResult.OK)
+                // Show the dialog - this should block until user responds
+                DialogResult result = folderDialog.ShowDialog(this);
+                
+                Log.Information($"Dialog result: {result}");
+                
+                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(folderDialog.SelectedPath))
                 {
-                    Log.Information("User cancelled folder selection");
-                    return;
+                    Log.Information($"Folder selected: {folderDialog.SelectedPath}");
+                    return folderDialog.SelectedPath;
                 }
+                
+                Log.Information("User cancelled folder selection");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Exception in ShowFolderSelectionDialog");
+                throw;
+            }
+        }
 
-                var destinationFolder = folderDialog.SelectedPath;
+        private async Task PerformDownloadAsync(string destinationFolder)
+        {
+            if (_fileStorageService == null)
+                return;
 
-                if (string.IsNullOrWhiteSpace(destinationFolder))
-                {
-                    MessageBox.Show("Please select a valid folder.", "Invalid Folder",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
+            try
+            {
                 SetControlsEnabled(false);
-                SetStatus("Downloading PDF files to selected folder...", true);
+                SetStatus("Preparing to download PDF files...", true);
                 SetCursor(Cursors.WaitCursor);
 
                 Log.Information("===========================================");
@@ -671,31 +965,49 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Get all PDF files from temporary directory
                 var pdfFiles = _fileStorageService.GetAllPdfFiles();
+                
+                Log.Information($"Found {pdfFiles.Count} PDF file(s) to download");
+
+                if (pdfFiles.Count == 0)
+                {
+                    MessageBox.Show("No PDF files found to download.", "No Files",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
 
                 int copiedCount = 0;
                 int failedCount = 0;
+                int totalFiles = pdfFiles.Count;
 
-                foreach (var sourceFile in pdfFiles)
+                // Copy files one at a time with progress updates
+                await Task.Run(() =>
                 {
-                    try
+                    foreach (var sourceFile in pdfFiles)
                     {
-                        var fileName = Path.GetFileName(sourceFile);
-                        var destinationPath = Path.Combine(destinationFolder, fileName);
+                        try
+                        {
+                            var fileName = Path.GetFileName(sourceFile);
+                              
+                            // Update status on UI thread
+                            Invoke(() => SetStatus($"Downloading file {copiedCount + 1} of {totalFiles}: {fileName}", true));
 
-                        // Handle duplicate filenames in destination
-                        destinationPath = GetUniqueDestinationPath(destinationPath);
+                            var destinationPath = Path.Combine(destinationFolder, fileName);
 
-                        File.Copy(sourceFile, destinationPath, overwrite: false);
-                        copiedCount++;
+                            // Handle duplicate filenames in destination
+                            destinationPath = GetUniqueDestinationPath(destinationPath);
 
-                        Log.Information($"  ✓ Copied: {fileName}");
+                            File.Copy(sourceFile, destinationPath, overwrite: false);
+                            copiedCount++;
+
+                            Log.Information($"  ✓ Copied {copiedCount}/{totalFiles}: {fileName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            failedCount++;
+                            Log.Error(ex, $"  ✗ Failed to copy: {Path.GetFileName(sourceFile)}");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        failedCount++;
-                        Log.Error(ex, $"  ✗ Failed to copy: {Path.GetFileName(sourceFile)}");
-                    }
-                }
+                });
 
                 Log.Information("===========================================");
                 Log.Information($"Download Summary: {copiedCount} files copied, {failedCount} failed");
@@ -840,12 +1152,35 @@ namespace SourceOne.PdfCombine.Utility.Forms
             {
                 cboCompany.SelectedValue = 12;
                 Log.Information("Set default company to 12");
+
+                // Trigger loading of vendor groups and jobs for the default company
+                _ = LoadVendorGroupsAndJobsForCompanyAsync(12);
             }
             else if (_companies.Count > 0)
             {
                 // Fallback to first item if company 12 doesn't exist
                 cboCompany.SelectedIndex = 0;
                 Log.Warning("Company 12 not found, defaulting to first company");
+
+                // Trigger loading for the first company
+                var firstCompany = _companies[0];
+                _ = LoadVendorGroupsAndJobsForCompanyAsync(firstCompany.JCCo);
+            }
+        }
+
+        private async Task LoadVendorGroupsAndJobsForCompanyAsync(int company)
+        {
+            try
+            {
+                // Load both vendor groups and jobs for the company
+                await Task.WhenAll(
+                    LoadVendorGroupsAsync(company),
+                    LoadJobsAsync(company)
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error loading vendor groups and jobs for company {company}");
             }
         }
 
@@ -855,7 +1190,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 return;
 
             int selectedCompany = (int)cboCompany.SelectedValue;
-            
+
             // Load both vendor groups and jobs for the selected company
             await Task.WhenAll(
                 LoadVendorGroupsAsync(selectedCompany),
@@ -879,7 +1214,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Create temporary query service to load vendor groups
                 var queryService = new PdfQueryService(connectionString);
-                
+
                 // Load vendor groups from database
                 _vendorGroups = await queryService.GetVendorGroupsAsync(company);
 
@@ -905,7 +1240,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
-        private async Task LoadJobsAsync(int company)
+        private async Task LoadJobsAsync(int company, string? vendorGroup = null, int? vendor = null)
         {
             try
             {
@@ -921,9 +1256,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Create temporary query service to load jobs
                 var queryService = new PdfQueryService(connectionString);
-                
-                // Load jobs from database
-                _jobs = await queryService.GetJobsAsync(company);
+
+                // Load jobs from database with optional filters
+                _jobs = await queryService.GetJobsAsync(company, vendorGroup, vendor);
 
                 // Update UI on the UI thread
                 if (InvokeRequired)
@@ -935,7 +1270,10 @@ namespace SourceOne.PdfCombine.Utility.Forms
                     BindJobsToComboBox();
                 }
 
-                Log.Information($"Loaded {_jobs.Count} jobs for company {company}");
+                var filterInfo = vendorGroup != null && vendor.HasValue 
+                    ? $" (filtered by VendorGroup={vendorGroup}, Vendor={vendor})" 
+                    : "";
+                Log.Information($"Loaded {_jobs.Count} jobs for company {company}{filterInfo}");
                 SetStatus("Ready", false);
             }
             catch (Exception ex)
@@ -949,52 +1287,52 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
         private void BindVendorGroupsToComboBox()
         {
-            if (_vendorGroups == null || _vendorGroups.Count == 0)
+            // Create a list with "All" option
+            var vendorGroupsWithAll = new List<VendorGroup>();
+
+            // Add "All" option at the beginning
+            vendorGroupsWithAll.Add(new VendorGroup { VendorGroupCode = "" });
+
+            if (_vendorGroups != null && _vendorGroups.Count > 0)
             {
-                cboVendorGroup.DataSource = null;
-                cboVendorGroup.Items.Clear();
-                cboVendorGroup.Items.Add("-- No Vendor Groups Found --");
-                cboVendorGroup.SelectedIndex = 0;
-                cboVendorGroup.Enabled = false;
-                Log.Information("No vendor groups found");
-                return;
+                vendorGroupsWithAll.AddRange(_vendorGroups);
             }
 
             // Bind to ComboBox on UI thread
             cboVendorGroup.Enabled = true;
-            cboVendorGroup.DataSource = _vendorGroups;
+            cboVendorGroup.DataSource = vendorGroupsWithAll;
             cboVendorGroup.DisplayMember = "VendorGroupCode";
             cboVendorGroup.ValueMember = "VendorGroupCode";
 
-            if (_vendorGroups.Count > 0)
-            {
-                cboVendorGroup.SelectedIndex = 0;
-            }
+            // Select "All" by default
+            cboVendorGroup.SelectedIndex = 0;
+
+            Log.Information($"Loaded {_vendorGroups?.Count ?? 0} vendor groups (plus 'All' option)");
         }
 
         private void BindJobsToComboBox()
         {
-            if (_jobs == null || _jobs.Count == 0)
+            // Create a list with "All" option
+            var jobsWithAll = new List<Job>();
+
+            // Add "All" option at the beginning
+            jobsWithAll.Add(new Job { JobNumber = "", Description = "-- All Jobs --", JobName = "-- All Jobs --" });
+
+            if (_jobs != null && _jobs.Count > 0)
             {
-                cboJob.DataSource = null;
-                cboJob.Items.Clear();
-                cboJob.Items.Add("-- No Jobs Found --");
-                cboJob.SelectedIndex = 0;
-                cboJob.Enabled = false;
-                Log.Information("No jobs found");
-                return;
+                jobsWithAll.AddRange(_jobs);
             }
 
             // Bind to ComboBox on UI thread
             cboJob.Enabled = true;
-            cboJob.DataSource = _jobs;
-            cboJob.DisplayMember = "Description";
+            cboJob.DataSource = jobsWithAll;
+            cboJob.DisplayMember = "JobName";
             cboJob.ValueMember = "JobNumber";
 
-            if (_jobs.Count > 0)
-            {
-                cboJob.SelectedIndex = 0;
-            }
+            // Select "All" by default
+            cboJob.SelectedIndex = 0;
+
+            Log.Information($"Loaded {_jobs?.Count ?? 0} jobs (plus 'All' option)");
         }
 
         private async void cboVendorGroup_SelectedIndexChanged(object sender, EventArgs e)
@@ -1003,7 +1341,30 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 return;
 
             string selectedVendorGroup = (string)cboVendorGroup.SelectedValue;
+
+            // If "All" is selected (empty string), don't load vendors - show all vendors option
+            if (string.IsNullOrEmpty(selectedVendorGroup))
+            {
+                // Clear vendors and show "All" option only
+                _vendors = new List<Vendor>();
+                BindVendorsToComboBox();
+                
+                // Also reload jobs for just the company
+                if (cboCompany.SelectedValue is int company)
+                {
+                    await LoadJobsAsync(company);
+                }
+                return;
+            }
+
+            // Load vendors for the selected vendor group
             await LoadVendorsAsync(selectedVendorGroup);
+            
+            // Reload jobs filtered by vendor group (but no specific vendor yet)
+            if (cboCompany.SelectedValue is int selectedCompany)
+            {
+                await LoadJobsAsync(selectedCompany);
+            }
         }
 
         private async Task LoadVendorsAsync(string vendorGroup)
@@ -1022,7 +1383,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 // Create temporary query service to load vendors
                 var queryService = new PdfQueryService(connectionString);
-                
+
                 // Load vendors from database
                 _vendors = await queryService.GetVendorsAsync(vendorGroup);
 
@@ -1050,27 +1411,52 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
         private void BindVendorsToComboBox()
         {
-            if (_vendors == null || _vendors.Count == 0)
+            // Create a list with "All" option
+            var vendorsWithAll = new List<Vendor>();
+
+            // Add "All" option at the beginning
+            vendorsWithAll.Add(new Vendor { VendorNumber = 0, Name = "-- All Vendors --" });
+
+            if (_vendors != null && _vendors.Count > 0)
             {
-                cboVendor.DataSource = null;
-                cboVendor.Items.Clear();
-                cboVendor.Items.Add("-- No Vendors Found --");
-                cboVendor.SelectedIndex = 0;
-                cboVendor.Enabled = false;
-                Log.Information("No vendors found");
-                return;
+                vendorsWithAll.AddRange(_vendors);
             }
 
             // Bind to ComboBox on UI thread
             cboVendor.Enabled = true;
-            cboVendor.DataSource = _vendors;
+            cboVendor.DataSource = vendorsWithAll;
             cboVendor.DisplayMember = "Name";
             cboVendor.ValueMember = "VendorNumber";
 
-            if (_vendors.Count > 0)
+            // Select "All" by default
+            cboVendor.SelectedIndex = 0;
+
+            Log.Information($"Loaded {_vendors?.Count ?? 0} vendors (plus 'All' option)");
+        }
+
+        private async void cboVendor_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // Reload jobs when vendor selection changes
+            if (cboCompany.SelectedValue is not int company)
+                return;
+
+            string? vendorGroup = null;
+            int? vendor = null;
+
+            // Get vendor group if selected and valid (not "All")
+            if (cboVendorGroup.SelectedValue is string vg && !string.IsNullOrWhiteSpace(vg))
             {
-                cboVendor.SelectedIndex = 0;
+                vendorGroup = vg;
             }
+
+            // Get vendor if selected and valid (not "All" - which is 0)
+            if (cboVendor.SelectedValue is int v && v > 0)
+            {
+                vendor = v;
+            }
+
+            // Reload jobs filtered by vendor (and vendor group if selected)
+            await LoadJobsAsync(company, vendorGroup, vendor);
         }
 
         private void grpParameters_Enter(object sender, EventArgs e)
@@ -1082,11 +1468,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
         {
             // Load predefined date types
             var dateTypes = DateType.GetDateTypes();
-            
+
             cboDateType.DataSource = dateTypes;
             cboDateType.DisplayMember = "DisplayName";
             cboDateType.ValueMember = "Code";
-            
+
             // Set default selection to first item (Financial Period)
             if (dateTypes.Count > 0)
             {

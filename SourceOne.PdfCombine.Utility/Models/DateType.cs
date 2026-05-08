@@ -20,9 +20,9 @@ namespace SourceOne.PdfCombine.Utility.Models
         {
             return new List<DateType>
             {
-                new DateType { Code = "FinancialPeriod", DisplayName = "Financial Period" },
-                new DateType { Code = "InvoiceDate", DisplayName = "Invoice Date" },
-                new DateType { Code = "AttachDate", DisplayName = "Attach Date" }
+                new DateType { Code = "Financial Period", DisplayName = "Financial Period" },
+                new DateType { Code = "Invoice Date",     DisplayName = "Invoice Date" },
+                new DateType { Code = "Attach Date",      DisplayName = "Attach Date" }
             };
         }
     }

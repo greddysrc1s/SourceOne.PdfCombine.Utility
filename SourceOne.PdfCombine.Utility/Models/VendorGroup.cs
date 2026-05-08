@@ -9,7 +9,7 @@ namespace SourceOne.PdfCombine.Utility.Models
 
         public override string ToString()
         {
-            return VendorGroupCode ?? string.Empty;
+            return string.IsNullOrWhiteSpace(VendorGroupCode) ? "-- All Vendor Groups --" : VendorGroupCode;
         }
     }
 }

@@ -9,6 +9,7 @@ public class UnallocatedPdfRecord
     public string? Name { get; set; }
     public string? Invoice { get; set; }
     public string? Job { get; set; }
+    public string? JobName { get; set; }
     public string? Expense_Account { get; set; }
     public decimal Amount { get; set; }
     public DateTime? Invoice_Date { get; set; }

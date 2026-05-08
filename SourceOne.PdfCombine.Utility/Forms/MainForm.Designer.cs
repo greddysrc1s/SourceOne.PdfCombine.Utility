@@ -149,7 +149,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblVendorGroup.AutoSize = true;
             lblVendorGroup.Location = new Point(20, 75);
             lblVendorGroup.Name = "lblVendorGroup";
-            lblVendorGroup.Size = new Size(102, 20);
+            lblVendorGroup.Size = new Size(104, 20);
             lblVendorGroup.TabIndex = 9;
             lblVendorGroup.Text = "Vendor Group:";
             // 
@@ -168,7 +168,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblVendor.AutoSize = true;
             lblVendor.Location = new Point(20, 115);
             lblVendor.Name = "lblVendor";
-            lblVendor.Size = new Size(58, 20);
+            lblVendor.Size = new Size(59, 20);
             lblVendor.TabIndex = 11;
             lblVendor.Text = "Vendor:";
             // 
@@ -180,13 +180,14 @@ namespace SourceOne.PdfCombine.Utility.Forms
             cboVendor.Name = "cboVendor";
             cboVendor.Size = new Size(300, 28);
             cboVendor.TabIndex = 12;
+            cboVendor.SelectedIndexChanged += cboVendor_SelectedIndexChanged;
             // 
             // lblJob
             // 
             lblJob.AutoSize = true;
             lblJob.Location = new Point(20, 155);
             lblJob.Name = "lblJob";
-            lblJob.Size = new Size(33, 20);
+            lblJob.Size = new Size(35, 20);
             lblJob.TabIndex = 13;
             lblJob.Text = "Job:";
             // 
@@ -204,7 +205,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblDateType.AutoSize = true;
             lblDateType.Location = new Point(20, 195);
             lblDateType.Name = "lblDateType";
-            lblDateType.Size = new Size(77, 20);
+            lblDateType.Size = new Size(79, 20);
             lblDateType.TabIndex = 15;
             lblDateType.Text = "Date Type:";
             // 
@@ -229,7 +230,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             dgvRecords.ReadOnly = true;
             dgvRecords.RowHeadersWidth = 51;
             dgvRecords.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvRecords.Size = new Size(1394, 492);
+            dgvRecords.Size = new Size(1394, 572);
             dgvRecords.TabIndex = 17;
             // 
             // statusStrip
@@ -245,7 +246,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // lblStatus
             // 
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(1271, 20);
+            lblStatus.Size = new Size(1030, 20);
             lblStatus.Spring = true;
             lblStatus.Text = "Ready";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
@@ -357,8 +358,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
         private System.Windows.Forms.ToolStripProgressBar progressBar;
-        private System.Windows.Forms.ToolStripStatusLabel lblRecordCount;
         private System.Windows.Forms.ToolStripStatusLabel lblCombinedFileLink;
+        private System.Windows.Forms.ToolStripStatusLabel lblRecordCount;
         private System.Windows.Forms.GroupBox grpParameters;
         private System.Windows.Forms.GroupBox grpRecords;
     }
