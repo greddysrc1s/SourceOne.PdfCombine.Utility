@@ -8,9 +8,9 @@ internal class Program
     [STAThread]
     static void Main(string[] args)
     {
-        // Build configuration to read appsettings.json
+        // Build configuration to read appsettings.json from application directory
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .Build();
 
@@ -22,6 +22,7 @@ internal class Program
         try
         {
             Log.Information("PDF Combine Utility - Windows Application Started");
+            Log.Information($"Application Base Directory: {AppContext.BaseDirectory}");
             Log.Information($"Thread Apartment State: {Thread.CurrentThread.GetApartmentState()}");
 
             // Ensure STA apartment state for proper dialog handling

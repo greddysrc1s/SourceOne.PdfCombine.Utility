@@ -28,9 +28,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
         {
             InitializeComponent();
 
-            // Build configuration
+            // Build configuration from application directory
             _configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
+                .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
 
@@ -49,6 +49,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             InitializeDateTypeDropdown();
 
             Log.Information("Application initialized successfully");
+            Log.Information($"Application Directory: {AppContext.BaseDirectory}");
             Log.Information($"Temporary file path: {_fileStorageSettings.GetFullPath()}");
             Log.Information($"Output file path: {_fileStorageSettings.GetOutputPath()}");
 
