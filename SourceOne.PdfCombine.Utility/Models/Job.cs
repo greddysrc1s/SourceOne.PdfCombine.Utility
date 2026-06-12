@@ -11,7 +11,7 @@ namespace SourceOne.PdfCombine.Utility.Models
 
         public override string ToString()
         {
-            return Description ?? string.Empty;
+            return JobName ?? Description ?? string.Empty;
         }
     }
 }

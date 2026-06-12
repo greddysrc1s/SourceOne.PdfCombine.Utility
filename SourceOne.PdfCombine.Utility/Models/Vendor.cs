@@ -8,9 +8,13 @@ namespace SourceOne.PdfCombine.Utility.Models
         public int VendorNumber { get; set; }
         public string? Name { get; set; }
 
+        public string DisplayName => VendorNumber == 0
+            ? (Name ?? string.Empty)
+            : $"{VendorNumber} - {Name}";
+
         public override string ToString()
         {
-            return Name ?? string.Empty;
+            return DisplayName;
         }
     }
 }

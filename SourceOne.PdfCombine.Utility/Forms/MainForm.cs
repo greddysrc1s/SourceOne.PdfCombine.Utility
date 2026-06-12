@@ -485,7 +485,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // Get optional filter values
             string? dateType = cboDateType.SelectedValue as string;
             string? vendorGroup = null;
-            int? vendor = null;
+            string? vendor = null;
             string? job = null;
 
             // Get vendor group if selected and valid (not "All")
@@ -494,17 +494,30 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 vendorGroup = vg;
             }
 
-            // Get vendor if selected and valid (not "All" - which is 0)
-            if (cboVendor.Enabled && cboVendor.SelectedValue != null && cboVendor.SelectedValue is int v && v > 0)
+            // Collect all checked vendors as comma-separated vendor numbers
+            var checkedVendors = clbVendor.CheckedItems
+                .Cast<Vendor>()
+                .Where(v => v.VendorNumber > 0)
+                .Select(v => v.VendorNumber.ToString())
+                .ToList();
+            if (checkedVendors.Count > 0)
             {
-                vendor = v;
+                vendor = string.Join(",", checkedVendors);
             }
 
-            // Get job if selected and valid (not "All")
-            if (cboJob.Enabled && cboJob.SelectedValue != null && cboJob.SelectedValue is string j && !string.IsNullOrWhiteSpace(j))
+            // Collect all checked jobs as comma-separated job numbers
+            var checkedJobs = clbJob.CheckedItems
+                .Cast<Job>()
+                .Where(j => !string.IsNullOrWhiteSpace(j.JobNumber))
+                .Select(j => j.JobNumber!)
+                .ToList();
+            if (checkedJobs.Count > 0)
             {
-                job = j;
+                job = string.Join(",", checkedJobs);
             }
+
+            // Get GL Account filter value
+            string? glAccount = string.IsNullOrWhiteSpace(txtGLAccount.Text) ? null : txtGLAccount.Text.Trim();
 
             try
             {
@@ -534,7 +547,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                 Log.Information("===========================================");
                 Log.Information($"Querying database for Company {company} from {beginDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}");
-                Log.Information($"Filters - DateType: {dateType}, VendorGroup: {vendorGroup}, Vendor: {vendor}, Job: {job}");
+                Log.Information($"Filters - DateType: {dateType}, VendorGroup: {vendorGroup}, Vendor: {vendor ?? "(all)"}, Job: {job ?? "(all)"}, GLAccount: {glAccount}");
                 Log.Information("===========================================");
 
                 // Query records with all parameters
@@ -545,7 +558,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
                     dateType,
                     vendorGroup,
                     vendor,
-                    job);
+                    job,
+                    glAccount);
 
                 Log.Information($"Found {_records.Count} record(s)");
 
@@ -601,11 +615,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             if (enabled && _records != null && _records.Count > 0)
             {
-                // btnExportToCsv.Enabled = true;
+                btnExportToExcel.Enabled = true;
             }
             else if (!enabled)
             {
-                //  btnExportToCsv.Enabled = false;
+                btnExportToExcel.Enabled = false;
                 btnCombinePdfs.Enabled = false;
                 btnDownload.Enabled = false;
             }
@@ -1241,7 +1255,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
         }
 
-        private async Task LoadJobsAsync(int company, string? vendorGroup = null, int? vendor = null)
+        private async Task LoadJobsAsync(int company, string? vendorGroup = null, string? vendor = null)
         {
             try
             {
@@ -1264,15 +1278,15 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 // Update UI on the UI thread
                 if (InvokeRequired)
                 {
-                    Invoke(() => BindJobsToComboBox());
+                    Invoke(() => BindJobsToCheckedListBox());
                 }
                 else
                 {
-                    BindJobsToComboBox();
+                    BindJobsToCheckedListBox();
                 }
 
-                var filterInfo = vendorGroup != null && vendor.HasValue 
-                    ? $" (filtered by VendorGroup={vendorGroup}, Vendor={vendor})" 
+                var filterInfo = vendorGroup != null || vendor != null
+                    ? $" (filtered by VendorGroup={vendorGroup ?? "(all)"}, Vendors={vendor ?? "(all)"})" 
                     : "";
                 Log.Information($"Loaded {_jobs.Count} jobs for company {company}{filterInfo}");
                 SetStatus("Ready", false);
@@ -1280,8 +1294,8 @@ namespace SourceOne.PdfCombine.Utility.Forms
             catch (Exception ex)
             {
                 Log.Error(ex, $"Error loading jobs for company {company}");
-                cboJob.DataSource = null;
-                cboJob.Items.Clear();
+                clbJob.DataSource = null;
+                clbJob.Items.Clear();
                 SetStatus("Error loading jobs", false);
             }
         }
@@ -1311,29 +1325,20 @@ namespace SourceOne.PdfCombine.Utility.Forms
             Log.Information($"Loaded {_vendorGroups?.Count ?? 0} vendor groups (plus 'All' option)");
         }
 
-        private void BindJobsToComboBox()
+        private void BindJobsToCheckedListBox()
         {
-            // Create a list with "All" option
-            var jobsWithAll = new List<Job>();
-
-            // Add "All" option at the beginning
-            jobsWithAll.Add(new Job { JobNumber = "", Description = "-- All Jobs --", JobName = "-- All Jobs --" });
+            clbJob.Items.Clear();
+            chkSelectAllJobs.Checked = false;
 
             if (_jobs != null && _jobs.Count > 0)
             {
-                jobsWithAll.AddRange(_jobs);
+                foreach (var job in _jobs)
+                {
+                    clbJob.Items.Add(job, false);
+                }
             }
 
-            // Bind to ComboBox on UI thread
-            cboJob.Enabled = true;
-            cboJob.DataSource = jobsWithAll;
-            cboJob.DisplayMember = "JobName";
-            cboJob.ValueMember = "JobNumber";
-
-            // Select "All" by default
-            cboJob.SelectedIndex = 0;
-
-            Log.Information($"Loaded {_jobs?.Count ?? 0} jobs (plus 'All' option)");
+            Log.Information($"Loaded {_jobs?.Count ?? 0} jobs into multi-select list");
         }
 
         private async void cboVendorGroup_SelectedIndexChanged(object sender, EventArgs e)
@@ -1346,10 +1351,10 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // If "All" is selected (empty string), don't load vendors - show all vendors option
             if (string.IsNullOrEmpty(selectedVendorGroup))
             {
-                // Clear vendors and show "All" option only
+                // Clear vendors list
                 _vendors = new List<Vendor>();
-                BindVendorsToComboBox();
-                
+                BindVendorsToCheckedListBox();
+
                 // Also reload jobs for just the company
                 if (cboCompany.SelectedValue is int company)
                 {
@@ -1391,11 +1396,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 // Update UI on the UI thread
                 if (InvokeRequired)
                 {
-                    Invoke(() => BindVendorsToComboBox());
+                    Invoke(() => BindVendorsToCheckedListBox());
                 }
                 else
                 {
-                    BindVendorsToComboBox();
+                    BindVendorsToCheckedListBox();
                 }
 
                 Log.Information($"Loaded {_vendors.Count} vendors for vendor group {vendorGroup}");
@@ -1404,60 +1409,61 @@ namespace SourceOne.PdfCombine.Utility.Forms
             catch (Exception ex)
             {
                 Log.Error(ex, $"Error loading vendors for vendor group {vendorGroup}");
-                cboVendor.DataSource = null;
-                cboVendor.Items.Clear();
+                clbVendor.Items.Clear();
                 SetStatus("Error loading vendors", false);
             }
         }
 
-        private void BindVendorsToComboBox()
+        private void BindVendorsToCheckedListBox()
         {
-            // Create a list with "All" option
-            var vendorsWithAll = new List<Vendor>();
-
-            // Add "All" option at the beginning
-            vendorsWithAll.Add(new Vendor { VendorNumber = 0, Name = "-- All Vendors --" });
+            clbVendor.Items.Clear();
+            chkSelectAllVendors.Checked = false;
 
             if (_vendors != null && _vendors.Count > 0)
             {
-                vendorsWithAll.AddRange(_vendors);
+                foreach (var vendor in _vendors)
+                {
+                    clbVendor.Items.Add(vendor, false);
+                }
             }
 
-            // Bind to ComboBox on UI thread
-            cboVendor.Enabled = true;
-            cboVendor.DataSource = vendorsWithAll;
-            cboVendor.DisplayMember = "Name";
-            cboVendor.ValueMember = "VendorNumber";
-
-            // Select "All" by default
-            cboVendor.SelectedIndex = 0;
-
-            Log.Information($"Loaded {_vendors?.Count ?? 0} vendors (plus 'All' option)");
+            Log.Information($"Loaded {_vendors?.Count ?? 0} vendors into multi-select list");
         }
 
-        private async void cboVendor_SelectedIndexChanged(object sender, EventArgs e)
+        private async void clbVendor_ItemCheck(object? sender, ItemCheckEventArgs e)
         {
-            // Reload jobs when vendor selection changes
+            // Reload jobs when vendor check state changes.
+            // ItemCheck fires before the state is committed, so we compute the
+            // effective checked set by combining the current checked items with
+            // the item whose state is about to change.
             if (cboCompany.SelectedValue is not int company)
                 return;
 
             string? vendorGroup = null;
-            int? vendor = null;
-
-            // Get vendor group if selected and valid (not "All")
             if (cboVendorGroup.SelectedValue is string vg && !string.IsNullOrWhiteSpace(vg))
-            {
                 vendorGroup = vg;
-            }
 
-            // Get vendor if selected and valid (not "All" - which is 0)
-            if (cboVendor.SelectedValue is int v && v > 0)
+            // Build the effective vendor list after the state change
+            var effectiveChecked = clbVendor.CheckedItems
+                .Cast<Vendor>()
+                .Where(v => v.VendorNumber > 0)
+                .Select(v => v.VendorNumber)
+                .ToHashSet();
+
+            if (clbVendor.Items[e.Index] is Vendor toggled && toggled.VendorNumber > 0)
             {
-                vendor = v;
+                if (e.NewValue == CheckState.Checked)
+                    effectiveChecked.Add(toggled.VendorNumber);
+                else
+                    effectiveChecked.Remove(toggled.VendorNumber);
             }
 
-            // Reload jobs filtered by vendor (and vendor group if selected)
-            await LoadJobsAsync(company, vendorGroup, vendor);
+            // Pass all selected vendors as comma-separated string
+            string? vendorList = effectiveChecked.Count > 0 
+                ? string.Join(",", effectiveChecked.OrderBy(v => v)) 
+                : null;
+
+            await LoadJobsAsync(company, vendorGroup, vendorList);
         }
 
         private void grpParameters_Enter(object sender, EventArgs e)
@@ -1481,6 +1487,228 @@ namespace SourceOne.PdfCombine.Utility.Forms
             }
 
             Log.Information("Date Type dropdown initialized with {Count} options", dateTypes.Count);
+        }
+
+        private async void chkSelectAllVendors_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (clbVendor.Items.Count == 0)
+                return;
+
+            bool isChecked = chkSelectAllVendors.Checked;
+
+            // Temporarily remove the ItemCheck handler to prevent multiple job reloads
+            clbVendor.ItemCheck -= clbVendor_ItemCheck;
+
+            try
+            {
+                for (int i = 0; i < clbVendor.Items.Count; i++)
+                {
+                    clbVendor.SetItemChecked(i, isChecked);
+                }
+
+                Log.Information($"{(isChecked ? "Selected" : "Deselected")} all {clbVendor.Items.Count} vendors");
+
+                // Now trigger the job reload once
+                await TriggerVendorJobReload();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in chkSelectAllVendors_CheckedChanged");
+                MessageBox.Show($"Error loading jobs: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // Re-attach the handler
+                clbVendor.ItemCheck += clbVendor_ItemCheck;
+            }
+        }
+
+        private void chkSelectAllJobs_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (clbJob.Items.Count == 0)
+                return;
+
+            bool isChecked = chkSelectAllJobs.Checked;
+
+            for (int i = 0; i < clbJob.Items.Count; i++)
+            {
+                clbJob.SetItemChecked(i, isChecked);
+            }
+
+            Log.Information($"{(isChecked ? "Selected" : "Deselected")} all {clbJob.Items.Count} jobs");
+        }
+
+        private async Task TriggerVendorJobReload()
+        {
+            if (cboCompany.SelectedValue is not int company)
+                return;
+
+            string? vendorGroup = null;
+            if (cboVendorGroup.SelectedValue is string vg && !string.IsNullOrWhiteSpace(vg))
+                vendorGroup = vg;
+
+            var checkedVendors = clbVendor.CheckedItems
+                .Cast<Vendor>()
+                .Where(v => v.VendorNumber > 0)
+                .Select(v => v.VendorNumber.ToString())
+                .OrderBy(v => v)
+                .ToList();
+
+            string? vendorList = checkedVendors.Count > 0 
+                ? string.Join(",", checkedVendors) 
+                : null;
+
+            await LoadJobsAsync(company, vendorGroup, vendorList);
+        }
+
+        private void btnExportToExcel_Click(object sender, EventArgs e)
+        {
+            if (_records == null || _records.Count == 0)
+            {
+                MessageBox.Show("No records to export", "Export to Excel",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                SetCursor(Cursors.WaitCursor);
+                SetStatus("Exporting to Excel...", true);
+
+                // Show save file dialog
+                using var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "Excel Files (*.xlsx)|*.xlsx",
+                    Title = "Export to Excel",
+                    FileName = $"AttachmentsExcel_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+                    DefaultExt = "xlsx",
+                    AddExtension = true,
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                };
+
+                if (saveFileDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    ExportToExcel(saveFileDialog.FileName);
+
+                    SetStatus("Excel export completed successfully", false);
+
+                    var result = MessageBox.Show(
+                        $"Excel file exported successfully!\n\n" +
+                        $"Location: {saveFileDialog.FileName}\n\n" +
+                        $"Do you want to open the file now?",
+                        "Export Complete",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = saveFileDialog.FileName,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error exporting to Excel");
+                MessageBox.Show($"Error exporting to Excel: {ex.Message}", "Export Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SetStatus("Error exporting to Excel", false);
+            }
+            finally
+            {
+                SetCursor(Cursors.Default);
+            }
+        }
+
+        private void ExportToExcel(string filePath)
+        {
+            using var workbook = new ClosedXML.Excel.XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Unallocated PDF Records");
+
+            // Add headers from visible DataGridView columns
+            int colIndex = 1;
+            var columnMapping = new Dictionary<int, int>(); // Maps Excel column to DataGridView column
+
+            foreach (DataGridViewColumn dgvCol in dgvRecords.Columns)
+            {
+                // Skip button columns
+                if (dgvCol is DataGridViewButtonColumn)
+                    continue;
+
+                var headerCell = worksheet.Cell(1, colIndex);
+                headerCell.Value = dgvCol.HeaderText;
+                headerCell.Style.Font.Bold = true;
+                headerCell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightBlue;
+                headerCell.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+
+                columnMapping[colIndex] = dgvCol.Index;
+                colIndex++;
+            }
+
+            // Add data rows
+            int rowIndex = 2;
+            foreach (DataGridViewRow dgvRow in dgvRecords.Rows)
+            {
+                if (dgvRow.IsNewRow)
+                    continue;
+
+                colIndex = 1;
+                foreach (var kvp in columnMapping)
+                {
+                    var excelCol = kvp.Key;
+                    var dgvColIndex = kvp.Value;
+
+                    var cellValue = dgvRow.Cells[dgvColIndex].Value;
+                    var cell = worksheet.Cell(rowIndex, excelCol);
+
+                    if (cellValue != null)
+                    {
+                        // Handle different data types
+                        if (cellValue is DateTime dateTime)
+                        {
+                            cell.Value = dateTime;
+                            cell.Style.DateFormat.Format = "yyyy-MM-dd HH:mm:ss";
+                        }
+                        else if (cellValue is decimal || cellValue is double || cellValue is float)
+                        {
+                            cell.Value = Convert.ToDouble(cellValue);
+
+                            // Apply currency format if the column header contains "Amount"
+                            if (dgvRecords.Columns[dgvColIndex].HeaderText.Contains("Amount"))
+                            {
+                                cell.Style.NumberFormat.Format = "$#,##0.00";
+                            }
+                        }
+                        else if (cellValue is int || cellValue is long)
+                        {
+                            cell.Value = Convert.ToInt64(cellValue);
+                        }
+                        else
+                        {
+                            cell.Value = cellValue.ToString();
+                        }
+                    }
+
+                    cell.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+                    colIndex++;
+                }
+
+                rowIndex++;
+            }
+
+            // Auto-fit columns
+            worksheet.Columns().AdjustToContents();
+
+            // Freeze header row
+            worksheet.SheetView.FreezeRows(1);
+
+            // Save the workbook
+            workbook.SaveAs(filePath);
+
+            Log.Information($"Exported {_records.Count} records to Excel file: {filePath}");
         }
     }
 }
