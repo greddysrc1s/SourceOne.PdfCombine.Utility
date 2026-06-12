@@ -41,9 +41,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblVendorGroup = new Label();
             cboVendorGroup = new ComboBox();
             lblVendor = new Label();
+            txtVendorSearch = new TextBox();
             clbVendor = new CheckedListBox();
             chkSelectAllVendors = new CheckBox();
             lblJob = new Label();
+            txtJobSearch = new TextBox();
             clbJob = new CheckedListBox();
             chkSelectAllJobs = new CheckBox();
             lblGLAccount = new Label();
@@ -119,7 +121,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // 
             // btnRetrieveRecords
             // 
-            btnRetrieveRecords.Location = new Point(198, 310);
+            btnRetrieveRecords.Location = new Point(194, 330);
             btnRetrieveRecords.Name = "btnRetrieveRecords";
             btnRetrieveRecords.Size = new Size(200, 69);
             btnRetrieveRecords.TabIndex = 6;
@@ -130,7 +132,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // btnCombinePdfs
             // 
             btnCombinePdfs.Enabled = false;
-            btnCombinePdfs.Location = new Point(453, 310);
+            btnCombinePdfs.Location = new Point(449, 330);
             btnCombinePdfs.Name = "btnCombinePdfs";
             btnCombinePdfs.Size = new Size(200, 69);
             btnCombinePdfs.TabIndex = 7;
@@ -141,7 +143,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // btnDownload
             // 
             btnDownload.Enabled = false;
-            btnDownload.Location = new Point(722, 310);
+            btnDownload.Location = new Point(718, 330);
             btnDownload.Name = "btnDownload";
             btnDownload.Size = new Size(200, 69);
             btnDownload.TabIndex = 8;
@@ -152,7 +154,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // btnExportToExcel
             // 
             btnExportToExcel.Enabled = false;
-            btnExportToExcel.Location = new Point(986, 310);
+            btnExportToExcel.Location = new Point(982, 330);
             btnExportToExcel.Name = "btnExportToExcel";
             btnExportToExcel.Size = new Size(200, 69);
             btnExportToExcel.TabIndex = 25;
@@ -188,11 +190,20 @@ namespace SourceOne.PdfCombine.Utility.Forms
             lblVendor.TabIndex = 11;
             lblVendor.Text = "Vendor:";
             // 
+            // txtVendorSearch
+            // 
+            txtVendorSearch.Location = new Point(120, 112);
+            txtVendorSearch.Name = "txtVendorSearch";
+            txtVendorSearch.PlaceholderText = "Search vendor by number or name...";
+            txtVendorSearch.Size = new Size(300, 27);
+            txtVendorSearch.TabIndex = 11;
+            txtVendorSearch.TextChanged += txtVendorSearch_TextChanged;
+            // 
             // clbVendor
             // 
             clbVendor.CheckOnClick = true;
             clbVendor.FormattingEnabled = true;
-            clbVendor.Location = new Point(120, 112);
+            clbVendor.Location = new Point(120, 145);
             clbVendor.Name = "clbVendor";
             clbVendor.Size = new Size(300, 70);
             clbVendor.TabIndex = 12;
@@ -201,7 +212,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // chkSelectAllVendors
             // 
             chkSelectAllVendors.AutoSize = true;
-            chkSelectAllVendors.Location = new Point(430, 115);
+            chkSelectAllVendors.Location = new Point(430, 148);
             chkSelectAllVendors.Name = "chkSelectAllVendors";
             chkSelectAllVendors.Size = new Size(93, 24);
             chkSelectAllVendors.TabIndex = 23;
@@ -212,17 +223,26 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // lblJob
             // 
             lblJob.AutoSize = true;
-            lblJob.Location = new Point(20, 205);
+            lblJob.Location = new Point(20, 224);
             lblJob.Name = "lblJob";
             lblJob.Size = new Size(35, 20);
             lblJob.TabIndex = 13;
             lblJob.Text = "Job:";
             // 
+            // txtJobSearch
+            // 
+            txtJobSearch.Location = new Point(120, 221);
+            txtJobSearch.Name = "txtJobSearch";
+            txtJobSearch.PlaceholderText = "Search job by number or name...";
+            txtJobSearch.Size = new Size(300, 27);
+            txtJobSearch.TabIndex = 13;
+            txtJobSearch.TextChanged += txtJobSearch_TextChanged;
+            // 
             // clbJob
             // 
             clbJob.CheckOnClick = true;
             clbJob.FormattingEnabled = true;
-            clbJob.Location = new Point(120, 202);
+            clbJob.Location = new Point(120, 254);
             clbJob.Name = "clbJob";
             clbJob.Size = new Size(300, 70);
             clbJob.TabIndex = 14;
@@ -230,7 +250,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // chkSelectAllJobs
             // 
             chkSelectAllJobs.AutoSize = true;
-            chkSelectAllJobs.Location = new Point(430, 205);
+            chkSelectAllJobs.Location = new Point(430, 257);
             chkSelectAllJobs.Name = "chkSelectAllJobs";
             chkSelectAllJobs.Size = new Size(93, 24);
             chkSelectAllJobs.TabIndex = 24;
@@ -284,7 +304,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             dgvRecords.ReadOnly = true;
             dgvRecords.RowHeadersWidth = 51;
             dgvRecords.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvRecords.Size = new Size(1394, 463);
+            dgvRecords.Size = new Size(1394, 442);
             dgvRecords.TabIndex = 17;
             // 
             // statusStrip
@@ -300,7 +320,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // lblStatus
             // 
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(1030, 20);
+            lblStatus.Size = new Size(1271, 20);
             lblStatus.Spring = true;
             lblStatus.Text = "Ready";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
@@ -334,9 +354,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
             grpParameters.Controls.Add(lblVendorGroup);
             grpParameters.Controls.Add(cboVendorGroup);
             grpParameters.Controls.Add(lblVendor);
+            grpParameters.Controls.Add(txtVendorSearch);
             grpParameters.Controls.Add(clbVendor);
             grpParameters.Controls.Add(chkSelectAllVendors);
             grpParameters.Controls.Add(lblJob);
+            grpParameters.Controls.Add(txtJobSearch);
             grpParameters.Controls.Add(clbJob);
             grpParameters.Controls.Add(chkSelectAllJobs);
             grpParameters.Controls.Add(lblGLAccount);
@@ -354,7 +376,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             grpParameters.Dock = DockStyle.Top;
             grpParameters.Location = new Point(0, 0);
             grpParameters.Name = "grpParameters";
-            grpParameters.Size = new Size(1400, 389);
+            grpParameters.Size = new Size(1400, 410);
             grpParameters.TabIndex = 19;
             grpParameters.TabStop = false;
             grpParameters.Text = "Parameters";
@@ -364,9 +386,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // 
             grpRecords.Controls.Add(dgvRecords);
             grpRecords.Dock = DockStyle.Fill;
-            grpRecords.Location = new Point(0, 389);
+            grpRecords.Location = new Point(0, 410);
             grpRecords.Name = "grpRecords";
-            grpRecords.Size = new Size(1400, 489);
+            grpRecords.Size = new Size(1400, 468);
             grpRecords.TabIndex = 20;
             grpRecords.TabStop = false;
             grpRecords.Text = "Unallocated PDF Records";
@@ -409,9 +431,11 @@ namespace SourceOne.PdfCombine.Utility.Forms
         private System.Windows.Forms.Label lblVendorGroup;
         private System.Windows.Forms.ComboBox cboVendorGroup;
         private System.Windows.Forms.Label lblVendor;
+        private System.Windows.Forms.TextBox txtVendorSearch;
         private System.Windows.Forms.CheckedListBox clbVendor;
         private System.Windows.Forms.CheckBox chkSelectAllVendors;
         private System.Windows.Forms.Label lblJob;
+        private System.Windows.Forms.TextBox txtJobSearch;
         private System.Windows.Forms.CheckedListBox clbJob;
         private System.Windows.Forms.CheckBox chkSelectAllJobs;
         private System.Windows.Forms.Label lblGLAccount;

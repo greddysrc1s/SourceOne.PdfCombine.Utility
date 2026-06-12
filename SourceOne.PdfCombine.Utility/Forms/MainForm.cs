@@ -129,31 +129,6 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
             dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
             {
-                HeaderText = "Expense Account",
-                DataPropertyName = "Expense_Account",
-                Width = 120,
-                SortMode = DataGridViewColumnSortMode.Automatic
-            });
-
-            dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                HeaderText = "Amount",
-                DataPropertyName = "Amount",
-                Width = 100,
-                DefaultCellStyle = new DataGridViewCellStyle { Format = "C2" },
-                SortMode = DataGridViewColumnSortMode.Automatic
-            });
-
-            dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                HeaderText = "Item",
-                DataPropertyName = "Item",
-                Width = 200,
-                SortMode = DataGridViewColumnSortMode.Automatic
-            });
-
-            dgvRecords.Columns.Add(new DataGridViewTextBoxColumn
-            {
                 HeaderText = "Attachment ID",
                 DataPropertyName = "UniqueAttchID",
                 Width = 250,
@@ -1329,26 +1304,61 @@ namespace SourceOne.PdfCombine.Utility.Forms
             cboVendorGroup.DisplayMember = "VendorGroupCode";
             cboVendorGroup.ValueMember = "VendorGroupCode";
 
-            // Select "All" by default
-            cboVendorGroup.SelectedIndex = 0;
-
-            Log.Information($"Loaded {_vendorGroups?.Count ?? 0} vendor groups (plus 'All' option)");
+            // Select vendor group "1" by default, or "All" if not found
+            var vendorGroup1 = vendorGroupsWithAll.FirstOrDefault(vg => vg.VendorGroupCode == "1");
+            if (vendorGroup1 != null)
+            {
+                cboVendorGroup.SelectedItem = vendorGroup1;
+                Log.Information($"Loaded {_vendorGroups?.Count ?? 0} vendor groups (plus 'All' option) - Default: Vendor Group 1");
+            }
+            else
+            {
+                cboVendorGroup.SelectedIndex = 0; // Fall back to "All" if "1" not found
+                Log.Information($"Loaded {_vendorGroups?.Count ?? 0} vendor groups (plus 'All' option) - Default: All (Vendor Group 1 not found)");
+            }
         }
 
         private void BindJobsToCheckedListBox()
         {
+            // Store currently checked jobs before clearing
+            var checkedJobNumbers = clbJob.CheckedItems
+                .Cast<Job>()
+                .Where(j => !string.IsNullOrWhiteSpace(j.JobNumber))
+                .Select(j => j.JobNumber!)
+                .ToHashSet();
+
             clbJob.Items.Clear();
             chkSelectAllJobs.Checked = false;
 
             if (_jobs != null && _jobs.Count > 0)
             {
-                foreach (var job in _jobs)
-                {
-                    clbJob.Items.Add(job, false);
-                }
-            }
+                // Get the search text
+                string searchText = txtJobSearch?.Text?.Trim() ?? string.Empty;
 
-            Log.Information($"Loaded {_jobs?.Count ?? 0} jobs into multi-select list");
+                // Filter jobs based on search text
+                var filteredJobs = _jobs;
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    filteredJobs = _jobs.Where(j =>
+                        (j.JobNumber != null && j.JobNumber.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (j.JobName != null && j.JobName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (j.Description != null && j.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    ).ToList();
+                }
+
+                // Add jobs and restore checked state
+                foreach (var job in filteredJobs)
+                {
+                    bool isChecked = job.JobNumber != null && checkedJobNumbers.Contains(job.JobNumber);
+                    clbJob.Items.Add(job, isChecked);
+                }
+
+                Log.Information($"Displaying {filteredJobs.Count} jobs (filtered from {_jobs.Count} total)");
+            }
+            else
+            {
+                Log.Information("No jobs to display");
+            }
         }
 
         private async void cboVendorGroup_SelectedIndexChanged(object sender, EventArgs e)
@@ -1426,18 +1436,43 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
         private void BindVendorsToCheckedListBox()
         {
+            // Store currently checked vendors before clearing
+            var checkedVendorNumbers = clbVendor.CheckedItems
+                .Cast<Vendor>()
+                .Select(v => v.VendorNumber)
+                .ToHashSet();
+
             clbVendor.Items.Clear();
             chkSelectAllVendors.Checked = false;
 
             if (_vendors != null && _vendors.Count > 0)
             {
-                foreach (var vendor in _vendors)
-                {
-                    clbVendor.Items.Add(vendor, false);
-                }
-            }
+                // Get the search text
+                string searchText = txtVendorSearch?.Text?.Trim() ?? string.Empty;
 
-            Log.Information($"Loaded {_vendors?.Count ?? 0} vendors into multi-select list");
+                // Filter vendors based on search text
+                var filteredVendors = _vendors;
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    filteredVendors = _vendors.Where(v =>
+                        v.VendorNumber.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                        (v.Name != null && v.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                    ).ToList();
+                }
+
+                // Add vendors and restore checked state
+                foreach (var vendor in filteredVendors)
+                {
+                    bool isChecked = checkedVendorNumbers.Contains(vendor.VendorNumber);
+                    clbVendor.Items.Add(vendor, isChecked);
+                }
+
+                Log.Information($"Displaying {filteredVendors.Count} vendors (filtered from {_vendors.Count} total)");
+            }
+            else
+            {
+                Log.Information("No vendors to display");
+            }
         }
 
         private async void clbVendor_ItemCheck(object? sender, ItemCheckEventArgs e)
@@ -1474,6 +1509,18 @@ namespace SourceOne.PdfCombine.Utility.Forms
                 : null;
 
             await LoadJobsAsync(company, vendorGroup, vendorList);
+        }
+
+        private void txtVendorSearch_TextChanged(object? sender, EventArgs e)
+        {
+            // Re-bind vendors with the current search filter
+            BindVendorsToCheckedListBox();
+        }
+
+        private void txtJobSearch_TextChanged(object? sender, EventArgs e)
+        {
+            // Re-bind jobs with the current search filter
+            BindJobsToCheckedListBox();
         }
 
         private void grpParameters_Enter(object sender, EventArgs e)
