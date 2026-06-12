@@ -300,7 +300,7 @@ namespace SourceOne.PdfCombine.Utility.Forms
             // lblStatus
             // 
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(1271, 20);
+            lblStatus.Size = new Size(1030, 20);
             lblStatus.Spring = true;
             lblStatus.Text = "Ready";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;

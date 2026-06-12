@@ -449,15 +449,22 @@ namespace SourceOne.PdfCombine.Utility.Forms
             Application.DoEvents();
         }
 
-        private void UpdateRecordCount(int count)
+        private void UpdateRecordCount(int recordCount, int? pdfFileCount = null)
         {
             if (InvokeRequired)
             {
-                Invoke(() => UpdateRecordCount(count));
+                Invoke(() => UpdateRecordCount(recordCount, pdfFileCount));
                 return;
             }
 
-            lblRecordCount.Text = $"Total Records: {count}";
+            if (pdfFileCount.HasValue)
+            {
+                lblRecordCount.Text = $"Total Records: {recordCount} | PDF Files: {pdfFileCount.Value}";
+            }
+            else
+            {
+                lblRecordCount.Text = $"Total Records: {recordCount}";
+            }
         }
 
         private async void btnRetrieveRecords_Click(object sender, EventArgs e)
@@ -575,6 +582,9 @@ namespace SourceOne.PdfCombine.Utility.Forms
 
                     // Process attachments
                     await ProcessAttachmentsAsync();
+
+                    // Update the record count label to show both records and PDF files
+                    UpdateRecordCount(_records.Count, _savedFileCount);
 
                     SetStatus($"Successfully processed {_savedFileCount} PDF files", false);
                 }
